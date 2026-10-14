@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kran-Wartung</title>
+<meta name="theme-color" content="#f5a400">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kran-Wartung">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+:root{
+  --bg:#f4f5f7; --card:#fff; --text:#1b1f24; --muted:#6a7380; --line:#e2e5ea;
+  --accent:#f5a400; --accent-ink:#1b1f24;
+  --red:#d93025; --red-bg:#fde8e6; --amber:#b86e00; --amber-bg:#fff3d6;
+  --green:#1e8e3e; --green-bg:#e3f4e8; --grey-bg:#eceef1;
+  --radius:14px; --nav-h:64px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111418; --card:#1b2026; --text:#e9edf2; --muted:#9aa4b1; --line:#2c333c;
+    --red:#ff6b5f; --red-bg:#3a1d1b; --amber:#ffb84d; --amber-bg:#3a2c12;
+    --green:#5cc97a; --green-bg:#173222; --grey-bg:#262c34;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:10;background:var(--accent);color:var(--accent-ink);
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;align-items:center;gap:10px}
+header h1{font-size:19px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{background:rgba(0,0,0,.12);border:0;color:inherit;font-size:15px;font-weight:600;
+  padding:8px 12px;border-radius:10px}
+main{padding:16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px);max-width:720px;margin:0 auto}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);
+  display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav a{flex:1;height:var(--nav-h);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:600}
+nav a svg{width:24px;height:24px}
+nav a.active{color:var(--text)}
+nav a.active svg{color:var(--accent)}
+.card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 1px 2px rgba(0,0,0,.06)}
+a.card{display:block;color:inherit;text-decoration:none}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted);font-size:14px}
+.title{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:22px 4px 10px}
+h2:first-child{margin-top:4px}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.b-red{background:var(--red-bg);color:var(--red)}
+.b-amber{background:var(--amber-bg);color:var(--amber)}
+.b-green{background:var(--green-bg);color:var(--green)}
+.b-grey{background:var(--grey-bg);color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px}
+.stat{background:var(--card);border-radius:var(--radius);padding:12px;text-align:center}
+.stat b{display:block;font-size:26px}
+.stat span{font-size:12px;color:var(--muted)}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+.dl dt{color:var(--muted)} .dl dd{margin:0;word-break:break-word}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+  background:var(--accent);color:var(--accent-ink);text-align:center;text-decoration:none;margin-bottom:10px}
+.btn.sec{background:var(--grey-bg);color:var(--text)}
+.btn.danger{background:var(--red-bg);color:var(--red)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btns .btn{margin:0}
+label{display:block;font-size:14px;font-weight:600;color:var(--muted);margin:12px 0 4px}
+input,select,textarea{width:100%;font:inherit;font-size:16px;padding:12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--card);color:var(--text)}
+textarea{min-height:90px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.check{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.check:last-child{border-bottom:0}
+.check .grow{font-size:15px}
+.seg{display:flex;border-radius:9px;overflow:hidden;border:1px solid var(--line);flex-shrink:0}
+.seg button{border:0;background:transparent;color:var(--muted);font-weight:700;font-size:13px;padding:8px 10px}
+.seg button.on[data-v=ok]{background:var(--green);color:#fff}
+.seg button.on[data-v=mangel]{background:var(--red);color:#fff}
+.seg button.on[data-v=na]{background:var(--muted);color:#fff}
+.photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.photos img{width:84px;height:84px;object-fit:cover;border-radius:10px;display:block}
+.photo{position:relative}
+.photo button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:0;
+  background:var(--red);color:#fff;font-weight:700;line-height:24px;padding:0}
+.search{margin-bottom:12px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px}
+.empty svg{width:64px;height:64px;opacity:.5}
+.tl{border-left:3px solid var(--line);padding-left:12px;margin-left:6px}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);transform:translateX(-50%);
+  background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:50;
+  opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.show{opacity:1}
+.viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:60;display:flex;align-items:center;justify-content:center}
+.viewer img{max-width:100%;max-height:100%}
+.pill-tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
+.pill-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;
+  padding:7px 14px;font-weight:600;font-size:14px;white-space:nowrap}
+.pill-tabs button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+</style>
+</head>
+<body>
+<header><h1 id="h-title">Kran-Wartung</h1><span id="h-action"></span></header>
+<main id="app"></main>
+<nav>
+  <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Übersicht</a>
+  <a href="#/kraene" data-tab="kraene"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V3l14 4H6"/><path d="M3 21h8"/><path d="M17 7v6"/><path d="M15 13h4v2a2 2 0 01-4 0"/></svg>Kräne</a>
+  <a href="#/verlauf" data-tab="verlauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Verlauf</a>
+  <a href="#/mehr" data-tab="mehr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Mehr</a>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ---------- Konstanten ---------- */
+const ARTEN = {
+  wartung:   {label:'Wartung',        badge:'b-green'},
+  pruefung:  {label:'UVV-Prüfung',    badge:'b-amber'},
+  inspektion:{label:'Inspektion',     badge:'b-grey'},
+  reparatur: {label:'Reparatur',      badge:'b-red'},
+  stoerung:  {label:'Störung',        badge:'b-red'},
+};
+const KRANTYPEN = ['Brückenkran','Portalkran','Halbportalkran','Schwenkkran','Hängekran',
+  'Turmdrehkran','Mobilkran','Ladekran','Elektrokettenzug','Seilzug','Sonstiges'];
+const DEFAULT_CHECKS = [
+  'Tragmittel / Seil / Kette',
+  'Lasthaken & Hakensicherung',
+  'Bremsen (Hub / Fahrt)',
+  'Endschalter (Hub / Fahrt)',
+  'NOT-HALT',
+  'Steuerung / Hängetaster / Funk',
+  'Laufbahn, Räder, Puffer',
+  'Getriebe & Schmierung',
+  'Elektrik / Kabel / Schleifleitung',
+  'Traglastschild & Beschilderung',
+  'Tragkonstruktion / Schrauben',
+];
+const SOON_DAYS = 30;
+
+/* ---------- Datenbank (IndexedDB) ---------- */
+const DB = (() => {
+  let dbp;
+  function open(){
+    if (dbp) return dbp;
+    dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('kran-wartung', 1);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        db.createObjectStore('cranes', {keyPath:'id'});
+        const e = db.createObjectStore('entries', {keyPath:'id'});
+        e.createIndex('craneId', 'craneId');
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return dbp;
+  }
+  async function tx(store, mode, fn){
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, mode);
+      const s = t.objectStore(store);
+      const out = fn(s);
+      t.oncomplete = () => res(out && 'result' in out ? out.result : undefined);
+      t.onerror = () => rej(t.error);
+    });
+  }
+  return {
+    all:  store => tx(store, 'readonly', s => s.getAll()),
+    get:  (store, id) => tx(store, 'readonly', s => s.get(id)),
+    put:  (store, obj) => tx(store, 'readwrite', s => s.put(obj)),
+    del:  (store, id) => tx(store, 'readwrite', s => s.delete(id)),
+    clear: store => tx(store, 'readwrite', s => s.clear()),
+  };
+})();
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const parseDate = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const fmtDate = s => s ? parseDate(s).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'}) : '–';
+const addDays = (s, n) => { const d = parseDate(s); d.setDate(d.getDate() + n); return d; };
+const daysUntil = d => { const t = new Date(); t.setHours(0,0,0,0); return Math.round((d - t) / 86400000); };
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+function setHeader(title, actionHtml = ''){ $('#h-title').textContent = title; $('#h-action').innerHTML = actionHtml; document.title = title; }
+
+/* Fälligkeit für eine Art (wartung | pruefung) */
+function dueInfo(crane, entries, art){
+  const interval = Number(art === 'pruefung' ? crane.intervallPruefung : crane.intervallWartung) || 0;
+  if (!interval) return null;
+  const last = entries.filter(e => e.craneId === crane.id && e.art === art).sort((a,b) => b.datum.localeCompare(a.datum))[0];
+  if (!last) {
+    if (crane.inbetrieb) {
+      const due = addDays(crane.inbetrieb, interval);
+      return {due, days: daysUntil(due), last: null};
+    }
+    return {due:null, days:null, last:null};
+  }
+  const due = addDays(last.datum, interval);
+  return {due, days: daysUntil(due), last};
+}
+function statusOf(info){
+  if (!info) return {cls:'b-grey', text:'kein Intervall', rank:3};
+  if (info.days === null) return {cls:'b-grey', text:'noch nie', rank:1};
+  if (info.days < 0) return {cls:'b-red', text:`${-info.days} T überfällig`, rank:0};
+  if (info.days === 0) return {cls:'b-red', text:'heute fällig', rank:0};
+  if (info.days <= SOON_DAYS) return {cls:'b-amber', text:`in ${info.days} T`, rank:2};
+  return {cls:'b-green', text:`in ${info.days} T`, rank:4};
+}
+function craneStatus(crane, entries){
+  const w = statusOf(dueInfo(crane, entries, 'wartung'));
+  const p = statusOf(dueInfo(crane, entries, 'pruefung'));
+  const open = entries.filter(e => e.craneId === crane.id && e.offen).length;
+  const worst = Math.min(w.rank, p.rank, open ? 0 : 9);
+  return {w, p, open, worst};
+}
+
+/* Fotos verkleinern, damit der Speicher nicht vollläuft */
+function shrinkImage(file, max = 1280, q = 0.75){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = e => { URL.revokeObjectURL(url); rej(e); };
+    img.src = url;
+  });
+}
+
+/* ---------- Router ---------- */
+const routes = [
+  [/^\/$/, viewHome],
+  [/^\/kraene$/, viewCranes],
+  [/^\/kran\/neu$/, () => viewCraneForm(null)],
+  [/^\/kran\/([\w]+)\/bearbeiten$/, id => viewCraneForm(id)],
+  [/^\/kran\/([\w]+)$/, viewCrane],
+  [/^\/eintrag\/neu\/([\w]+)(?:\/(\w+))?$/, (cid, art) => viewEntryForm(null, cid, art)],
+  [/^\/eintrag\/([\w]+)\/bearbeiten$/, id => viewEntryForm(id)],
+  [/^\/eintrag\/([\w]+)$/, viewEntry],
+  [/^\/verlauf$/, viewHistory],
+  [/^\/mehr$/, viewMore],
+];
+async function render(){
+  const path = location.hash.slice(1) || '/';
+  const tab = path.startsWith('/kran') ? 'kraene' : path.startsWith('/verlauf') || path.startsWith('/eintrag') ? 'verlauf' : path.startsWith('/mehr') ? 'mehr' : 'home';
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
+  for (const [re, fn] of routes) {
+    const m = path.match(re);
+    if (m) { await fn(...m.slice(1)); window.scrollTo(0,0); return; }
+  }
+  location.hash = '#/';
+}
+window.addEventListener('hashchange', render);
+const go = h => { location.hash = h; };
+
+/* ---------- Ansichten ---------- */
+async function viewHome(){
+  setHeader('Kran-Wartung', '<button onclick="go(\'#/kran/neu\')">+ Kran</button>');
+  const [cranes, entries] = await Promise.all([DB.all('cranes'), DB.all('entries')]);
+  if (!cranes.length) {
+    $('#app').innerHTML = `
+      <div class="empty">
+        ${craneIcon()}
+        <p><b>Noch keine Kräne angelegt.</b></p>
+        <p>Lege deinen ersten Kran an, um Wartungen und UVV-Prüfungen zu verfolgen.</p>
+      </div>
+      <a class="btn" href="#/kran/neu">Ersten Kran anlegen</a>`;
+    return;
+  }
+  const rows = cranes.map(c => ({c, s: craneStatus(c, entries)}));
+  const overdue = rows.filter(r => r.s.w.rank === 0 || r.s.p.rank === 0).length;
+  const soon = rows.filter(r => r.s.w.rank === 2 || r.s.p.rank === 2).length;
+  const openDefects = entries.filter(e => e.offen);
+
+  const tasks = [];
+  for (const {c} of rows) {
+    for (const art of ['pruefung','wartung']) {
+      const info = dueInfo(c, entries, art);
+      const st = statusOf(info);
+      if (st.rank <= 2) tasks.push({c, art, info, st});
+    }
+  }
+  tasks.sort((a,b) => (a.info.days ?? -99999) - (b.info.days ?? -99999));
+
+  $('#app').innerHTML = `
+    <div class="stats">
+      <div class="stat"><b style="color:var(--red)">${overdue}</b><span>überfällig</span></div>
+      <div class="stat"><b style="color:var(--amber)">${soon}</b><span>in ${SOON_DAYS} Tagen</span></div>
+      <div class="stat"><b>${openDefects.length}</b><span>offene Mängel</span></div>
+    </div>
+
+    <h2>Fällig</h2>
+    ${tasks.length ? tasks.map(t => `
+      <a class="card row" href="#/eintrag/neu/${t.c.id}/${t.art}">
+        <div class="grow">
+          <div class="title">${esc(t.c.name)}</div>
+          <div class="muted">${ARTEN[t.art].label}${t.info.due ? ' · ' + t.info.due.toLocaleDateString('de-DE') : ''}</div>
+        </div>
+        <span class="badge ${t.st.cls}">${t.st.text}</span>
+      </a>`).join('') : `<div class="card muted">Alles erledigt – nichts fällig in den nächsten ${SOON_DAYS} Tagen. 👍</div>`}
+
+    ${openDefects.length ? `<h2>Offene Mängel</h2>` + openDefects.sort((a,b)=>b.datum.localeCompare(a.datum)).map(e => {
+      const c = cranes.find(c => c.id === e.craneId);
+      return `<a class="card row" href="#/eintrag/${e.id}">
+        <div class="grow">
+          <div class="title">${esc(c ? c.name : 'Unbekannter Kran')}</div>
+          <div class="muted">${fmtDate(e.datum)} · ${esc(defectSummary(e))}</div>
+        </div><span class="badge b-red">offen</span></a>`;
+    }).join('') : ''}
+  `;
+}
+
+function defectSummary(e){
+  const items = Object.entries(e.checks || {}).filter(([,v]) => v === 'mangel').map(([k]) => k);
+  if (e.maengel) items.unshift(e.maengel);
+  return items.join(', ').slice(0, 90) || ARTEN[e.art]?.label || '';
+}
+
+let craneFilter = '';
+async function viewCranes(){
+  setHeader('Kräne', '<button onclick="go(\'#/kran/neu\')">+ Neu</button>');
+  const [cranes, entries] = await Promise.all([DB.all('cranes'), DB.all('entries')]);
+  const draw = () => {
+    const q = craneFilter.toLowerCase();
+    const list = cranes
+      .filter(c => !q || [c.name,c.standort,c.hersteller,c.seriennr,c.typ].join(' ').toLowerCase().includes(q))
+      .map(c => ({c, s: craneStatus(c, entries)}))
+      .sort((a,b) => a.s.worst - b.s.worst || a.c.name.localeCompare(b.c.name));
+    $('#list').innerHTML = list.length ? list.map(({c,s}) => `
+      <a class="card" href="#/kran/${c.id}">
+        <div class="row"><div class="grow title">${esc(c.name)}</div>${s.open ? `<span class="badge b-red">${s.open} Mangel</span>` : ''}</div>
+        <div class="muted">${esc([c.typ, c.standort].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
+        <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px">
+          <span class="muted">Wartung</span><span class="badge ${s.w.cls}">${s.w.text}</span>
+          <span class="muted" style="margin-left:6px">UVV</span><span class="badge ${s.p.cls}">${s.p.text}</span>
+        </div>
+      </a>`).join('') : `<div class="empty">${cranes.length ? 'Keine Treffer.' : 'Noch keine Kräne angelegt.'}</div>`;
+  };
+  $('#app').innerHTML = `
+    <input class="search" type="search" placeholder="Suchen (Name, Standort, Seriennr. …)" value="${esc(craneFilter)}" id="q">
+    <div id="list"></div>`;
+  $('#q').addEventListener('input', e => { craneFilter = e.target.value; draw(); });
+  draw();
+}
+
+async function viewCrane(id){
+  const c = await DB.get('cranes', id);
+  if (!c) return go('#/kraene');
+  const entries = await DB.all('entries');
+  const mine = entries.filter(e => e.craneId === id).sort((a,b) => b.datum.localeCompare(a.datum));
+  const w = dueInfo(c, entries, 'wartung'), p = dueInfo(c, entries, 'pruefung');
+  const ws = statusOf(w), ps = statusOf(p);
+  setHeader(c.name, `<button onclick="go('#/kran/${id}/bearbeiten')">Bearbeiten</button>`);
+  const dueLine = (label, info, st) => `
+    <div class="row" style="padding:6px 0">
+      <div class="grow"><b>${label}</b><div class="muted">${info && info.due ? 'fällig am ' + info.due.toLocaleDateString('de-DE') : info ? 'noch nie durchgeführt' : 'kein Intervall festgelegt'}</div></div>
+      <span class="badge ${st.cls}">${st.text}</span>
+    </div>`;
+  $('#app').innerHTML = `
+    <div class="card">
+      ${dueLine('Wartung', w, ws)}
+      ${dueLine('UVV-Prüfung', p, ps)}
+    </div>
+    <div class="btns" style="margin-bottom:12px">
+      <a class="btn" href="#/eintrag/neu/${id}/wartung">+ Wartung</a>
+      <a class="btn" href="#/eintrag/neu/${id}/pruefung">+ Prüfung</a>
+      <a class="btn sec" href="#/eintrag/neu/${id}/reparatur">+ Reparatur</a>
+      <a class="btn sec" href="#/eintrag/neu/${id}/stoerung">+ Störung</a>
+    </div>
+    <h2>Stammdaten</h2>
+    <div class="card"><dl class="dl">
+      ${[['Typ',c.typ],['Hersteller',c.hersteller],['Modell',c.modell],['Seriennr.',c.seriennr],['Inventarnr.',c.inventarnr],
+         ['Standort',c.standort],['Traglast',c.traglast ? c.traglast + ' t' : ''],['Baujahr',c.baujahr],
+         ['Inbetriebnahme',c.inbetrieb ? fmtDate(c.inbetrieb) : ''],
+         ['Wartungsintervall',c.intervallWartung ? c.intervallWartung + ' Tage' : ''],
+         ['Prüfintervall',c.intervallPruefung ? c.intervallPruefung + ' Tage' : ''],
+         ['Ansprechpartner',c.kontakt],['Notiz',c.notiz]]
+        .filter(([,v]) => v).map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}
+    </dl></div>
+    <h2>Historie (${mine.length})</h2>
+    ${mine.length ? mine.map(entryCard).join('') : '<div class="card muted">Noch keine Einträge.</div>'}
+  `;
+}
+
+function entryCard(e, crane){
+  const a = ARTEN[e.art] || {label:e.art, badge:'b-grey'};
+  const defects = Object.values(e.checks || {}).filter(v => v === 'mangel').length;
+  return `<a class="card" href="#/eintrag/${e.id}">
+    <div class="row">
+      <div class="grow">
+        <div class="title">${crane ? esc(crane.name) : a.label}</div>
+        <div class="muted">${crane ? a.label + ' · ' : ''}${fmtDate(e.datum)}${e.techniker ? ' · ' + esc(e.techniker) : ''}</div>
+      </div>
+      ${e.offen ? '<span class="badge b-red">Mangel offen</span>' : defects ? `<span class="badge b-green">behoben</span>` : `<span class="badge ${a.badge}">${a.label}</span>`}
+    </div>
+    ${e.notiz ? `<div class="muted" style="margin-top:6px">${esc(e.notiz.slice(0,140))}</div>` : ''}
+  </a>`;
+}
+
+async function viewCraneForm(id){
+  const c = id ? await DB.get('cranes', id) : {intervallWartung:90, intervallPruefung:365};
+  if (id && !c) return go('#/kraene');
+  setHeader(id ? 'Kran bearbeiten' : 'Neuer Kran');
+  const f = (name, label, type = 'text', extra = '') =>
+    `<div><label for="f-${name}">${label}</label><input id="f-${name}" name="${name}" type="${type}" value="${esc(c[name])}" ${extra}></div>`;
+  $('#app').innerHTML = `
+    <form id="form" autocomplete="off">
+      <div class="card">
+        ${f('name','Bezeichnung *','text','required placeholder="z. B. Hallenkran Halle 2"')}
+        <label for="f-typ">Krantyp</label>
+        <select id="f-typ" name="typ"><option value="">– bitte wählen –</option>
+          ${KRANTYPEN.map(t => `<option ${c.typ === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <div class="grid2">${f('hersteller','Hersteller')}${f('modell','Modell')}</div>
+        <div class="grid2">${f('seriennr','Seriennummer')}${f('inventarnr','Inventarnr.')}</div>
+        ${f('standort','Standort / Kunde')}
+        <div class="grid2">${f('traglast','Traglast (t)','number','step="0.01" inputmode="decimal"')}${f('baujahr','Baujahr','number','inputmode="numeric"')}</div>
+        ${f('inbetrieb','Inbetriebnahme','date')}
+      </div>
+      <div class="card">
+        <div class="grid2">
+          ${f('intervallWartung','Wartung alle (Tage)','number','inputmode="numeric" min="0"')}
+          ${f('intervallPruefung','UVV-Prüfung alle (Tage)','number','inputmode="numeric" min="0"')}
+        </div>
+        <div class="muted" style="margin-top:8px">UVV-/Sachkundigenprüfung nach DGUV V52 / BetrSichV i. d. R. mindestens jährlich (365 Tage). 0 = kein Intervall.</div>
+      </div>
+      <div class="card">
+        ${f('kontakt','Ansprechpartner / Telefon')}
+        <label for="f-notiz">Notiz</label><textarea id="f-notiz" name="notiz">${esc(c.notiz)}</textarea>
+      </div>
+      <button class="btn" type="submit">Speichern</button>
+      ${id ? '<button class="btn danger" type="button" id="del">Kran löschen</button>' : ''}
+      <a class="btn sec" href="${id ? '#/kran/' + id : '#/kraene'}">Abbrechen</a>
+    </form>`;
+  $('#form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const data = Object.fromEntries(new FormData(ev.target));
+    const obj = {...c, ...data, id: c.id || uid(), updated: Date.now()};
+    obj.name = obj.name.trim();
+    await DB.put('cranes', obj);
+    toast('Gespeichert');
+    go('#/kran/' + obj.id);
+  });
+  if (id) $('#del').addEventListener('click', async () => {
+    const entries = (await DB.all('entries')).filter(e => e.craneId === id);
+    if (!confirm(`„${c.name}“ und ${entries.length} Einträge wirklich löschen?`)) return;
+    for (const e of entries) await DB.del('entries', e.id);
+    await DB.del('cranes', id);
+    toast('Kran gelöscht');
+    go('#/kraene');
+  });
+}
+
+async function viewEntryForm(id, craneId, art){
+  let e = id ? await DB.get('entries', id) : null;
+  if (id && !e) return go('#/verlauf');
+  const cranes = (await DB.all('cranes')).sort((a,b) => a.name.localeCompare(b.name));
+  if (!e) {
+    art = art && ARTEN[art] ? art : 'wartung';
+    const last = localStorage.getItem('techniker') || '';
+    e = {craneId, art, datum: today(), techniker: last, checks:{}, fotos:[]};
+    if (art === 'wartung' || art === 'pruefung' || art === 'inspektion') DEFAULT_CHECKS.forEach(k => e.checks[k] = '');
+  }
+  const crane = cranes.find(c => c.id === e.craneId);
+  setHeader(id ? 'Eintrag bearbeiten' : `${ARTEN[e.art]?.label || 'Eintrag'} erfassen`);
+  let fotos = [...(e.fotos || [])];
+  let checks = {...(e.checks || {})};
+
+  const drawChecks = () => {
+    const keys = Object.keys(checks);
+    $('#checks').innerHTML = keys.length ? keys.map(k => `
+      <div class="check">
+        <div class="grow">${esc(k)}</div>
+        <div class="seg" data-k="${esc(k)}">
+          ${[['ok','OK'],['mangel','Mangel'],['na','n. a.']].map(([v,l]) => `<button type="button" data-v="${v}" class="${checks[k] === v ? 'on' : ''}">${l}</button>`).join('')}
+        </div>
+      </div>`).join('') : '<div class="muted">Keine Prüfpunkte.</div>';
+  };
+  const drawPhotos = () => {
+    $('#photos').innerHTML = fotos.map((src,i) => `<div class="photo"><img src="${src}" data-i="${i}"><button type="button" data-rm="${i}">×</button></div>`).join('');
+  };
+
+  $('#app').innerHTML = `
+    <form id="form">
+      <div class="card">
+        <label for="f-crane">Kran *</label>
+        <select id="f-crane" name="craneId" required>
+          <option value="">– Kran wählen –</option>
+          ${cranes.map(c => `<option value="${c.id}" ${c.id === e.craneId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        </select>
+        <div class="grid2">
+          <div><label for="f-art">Art</label>
+            <select id="f-art" name="art">${Object.entries(ARTEN).map(([k,v]) => `<option value="${k}" ${k === e.art ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+          <div><label for="f-datum">Datum</label><input id="f-datum" type="date" name="datum" value="${esc(e.datum)}" required></div>
+        </div>
+        <div class="grid2">
+          <div><label for="f-tech">Techniker / Prüfer</label><input id="f-tech" name="techniker" value="${esc(e.techniker)}"></div>
+          <div><label for="f-std">Betriebsstunden</label><input id="f-std" name="stunden" type="number" inputmode="decimal" value="${esc(e.stunden)}"></div>
+        </div>
+      </div>
+
+      <h2>Prüfpunkte</h2>
+      <div class="card">
+        <div id="checks"></div>
+        <div class="row" style="margin-top:10px">
+          <input id="newcheck" placeholder="Eigenen Prüfpunkt hinzufügen" class="grow">
+          <button type="button" class="btn sec" id="addcheck" style="width:auto;margin:0;padding:12px 16px">+</button>
+        </div>
+      </div>
+
+      <h2>Mängel & Arbeiten</h2>
+      <div class="card">
+        <label for="f-maengel">Festgestellte Mängel</label>
+        <textarea id="f-maengel" name="maengel" placeholder="z. B. Hakensicherung defekt">${esc(e.maengel)}</textarea>
+        <label for="f-notiz">Durchgeführte Arbeiten / Notiz</label>
+        <textarea id="f-notiz" name="notiz" placeholder="z. B. Seil geschmiert, Bremse nachgestellt">${esc(e.notiz)}</textarea>
+        <label for="f-teile">Ersatzteile / Material</label>
+        <input id="f-teile" name="teile" value="${esc(e.teile)}">
+        <label class="row" style="margin-top:14px;color:var(--text)">
+          <input type="checkbox" name="offen" id="f-offen" ${e.offen ? 'checked' : ''} style="width:22px;height:22px;flex:none">
+          Mangel ist noch offen (nicht behoben)
+        </label>
+      </div>
+
+      <h2>Fotos</h2>
+      <div class="card">
+        <div class="photos" id="photos"></div>
+        <label class="btn sec" style="margin:10px 0 0;color:var(--text)">📷 Foto aufnehmen / wählen
+          <input type="file" accept="image/*" capture="environment" multiple id="file" hidden></label>
+      </div>
+
+      <button class="btn" type="submit">Speichern</button>
+      <a class="btn sec" href="${id ? '#/eintrag/' + id : crane ? '#/kran/' + crane.id : '#/'}">Abbrechen</a>
+    </form>`;
+  drawChecks(); drawPhotos();
+
+  $('#checks').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    const k = b.parentElement.dataset.k;
+    checks[k] = checks[k] === b.dataset.v ? '' : b.dataset.v;
+    if (b.dataset.v === 'mangel' && checks[k] === 'mangel') $('#f-offen').checked = true;
+    drawChecks();
+  });
+  $('#addcheck').addEventListener('click', () => {
+    const v = $('#newcheck').value.trim(); if (!v) return;
+    checks[v] = checks[v] || ''; $('#newcheck').value = ''; drawChecks();
+  });
+  $('#file').addEventListener('change', async ev => {
+    for (const file of ev.target.files) {
+      try { fotos.push(await shrinkImage(file)); } catch { toast('Foto konnte nicht geladen werden'); }
+    }
+    ev.target.value = ''; drawPhotos();
+  });
+  $('#photos').addEventListener('click', ev => {
+    const rm = ev.target.dataset.rm;
+    if (rm !== undefined) { fotos.splice(Number(rm), 1); drawPhotos(); }
+    else if (ev.target.tagName === 'IMG') showImage(ev.target.src);
+  });
+  $('#form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const data = Object.fromEntries(new FormData(ev.target));
+    const obj = {...e, ...data, offen: !!data.offen, checks, fotos, id: e.id || uid(), updated: Date.now()};
+    if (obj.offen && !e.offen) obj.behobenAm = '';
+    await DB.put('entries', obj);
+    if (obj.techniker) localStorage.setItem('techniker', obj.techniker);
+    toast('Eintrag gespeichert');
+    go('#/kran/' + obj.craneId);
+  });
+}
+
+async function viewEntry(id){
+  const e = await DB.get('entries', id);
+  if (!e) return go('#/verlauf');
+  const c = await DB.get('cranes', e.craneId);
+  const a = ARTEN[e.art] || {label:e.art, badge:'b-grey'};
+  setHeader(a.label, `<button onclick="go('#/eintrag/${id}/bearbeiten')">Bearbeiten</button>`);
+  const checkLabel = {ok:['OK','b-green'], mangel:['Mangel','b-red'], na:['n. a.','b-grey'], '':['–','b-grey']};
+  const checks = Object.entries(e.checks || {});
+  $('#app').innerHTML = `
+    <div class="card">
+      <div class="row"><div class="grow">
+        <div class="title">${c ? `<a href="#/kran/${c.id}" style="color:inherit">${esc(c.name)}</a>` : 'Unbekannter Kran'}</div>
+        <div class="muted">${fmtDate(e.datum)}${e.techniker ? ' · ' + esc(e.techniker) : ''}</div>
+      </div>${e.offen ? '<span class="badge b-red">Mangel offen</span>' : ''}</div>
+      ${e.stunden ? `<div class="muted" style="margin-top:6px">Betriebsstunden: ${esc(e.stunden)}</div>` : ''}
+    </div>
+    ${e.offen ? `<button class="btn" id="fix">✔ Mangel als behoben markieren</button>` : e.behobenAm ? `<div class="card muted">Mangel behoben am ${fmtDate(e.behobenAm)}</div>` : ''}
+    ${checks.length ? `<h2>Prüfpunkte</h2><div class="card">${checks.map(([k,v]) => `
+      <div class="check"><div class="grow">${esc(k)}</div><span class="badge ${checkLabel[v][1]}">${checkLabel[v][0]}</span></div>`).join('')}</div>` : ''}
+    ${e.maengel ? `<h2>Mängel</h2><div class="card" style="white-space:pre-wrap">${esc(e.maengel)}</div>` : ''}
+    ${e.notiz ? `<h2>Arbeiten / Notiz</h2><div class="card" style="white-space:pre-wrap">${esc(e.notiz)}</div>` : ''}
+    ${e.teile ? `<h2>Ersatzteile</h2><div class="card">${esc(e.teile)}</div>` : ''}
+    ${(e.fotos||[]).length ? `<h2>Fotos</h2><div class="card"><div class="photos" id="photos">${e.fotos.map(s => `<img src="${s}">`).join('')}</div></div>` : ''}
+    <div style="margin-top:16px">
+      <button class="btn sec" id="share">Bericht teilen</button>
+      <button class="btn danger" id="del">Eintrag löschen</button>
+    </div>`;
+  $('#photos')?.addEventListener('click', ev => { if (ev.target.tagName === 'IMG') showImage(ev.target.src); });
+  $('#fix')?.addEventListener('click', async () => {
+    e.offen = false; e.behobenAm = today();
+    await DB.put('entries', e); toast('Als behoben markiert'); render();
+  });
+  $('#del').addEventListener('click', async () => {
+    if (!confirm('Eintrag wirklich löschen?')) return;
+    await DB.del('entries', id); toast('Gelöscht'); go(c ? '#/kran/' + c.id : '#/verlauf');
+  });
+  $('#share').addEventListener('click', async () => {
+    const lines = [
+      `${a.label} – ${c ? c.name : ''}`,
+      `Datum: ${fmtDate(e.datum)}`,
+      c?.seriennr ? `Seriennr.: ${c.seriennr}` : '',
+      c?.standort ? `Standort: ${c.standort}` : '',
+      e.techniker ? `Techniker: ${e.techniker}` : '',
+      e.stunden ? `Betriebsstunden: ${e.stunden}` : '',
+      checks.length ? '\nPrüfpunkte:\n' + checks.map(([k,v]) => `- ${k}: ${checkLabel[v][0]}`).join('\n') : '',
+      e.maengel ? `\nMängel:\n${e.maengel}` : '',
+      e.notiz ? `\nArbeiten:\n${e.notiz}` : '',
+      e.teile ? `\nErsatzteile: ${e.teile}` : '',
+      e.offen ? '\nStatus: Mangel OFFEN' : e.behobenAm ? `\nMangel behoben am ${fmtDate(e.behobenAm)}` : '',
+    ].filter(Boolean).join('\n');
+    if (navigator.share) { try { await navigator.share({title: a.label, text: lines}); } catch {} }
+    else { await navigator.clipboard?.writeText(lines); toast('Bericht kopiert'); }
+  });
+}
+
+let histFilter = 'alle';
+async function viewHistory(){
+  setHeader('Verlauf');
+  const [cranes, entries] = await Promise.all([DB.all('cranes'), DB.all('entries')]);
+  const byId = Object.fromEntries(cranes.map(c => [c.id, c]));
+  const draw = () => {
+    const list = entries
+      .filter(e => histFilter === 'alle' || (histFilter === 'offen' ? e.offen : e.art === histFilter))
+      .sort((a,b) => b.datum.localeCompare(a.datum) || (b.updated||0) - (a.updated||0));
+    $('#list').innerHTML = list.length ? list.map(e => entryCard(e, byId[e.craneId] || {name:'Unbekannter Kran'})).join('')
+      : '<div class="empty">Keine Einträge.</div>';
+    document.querySelectorAll('.pill-tabs button').forEach(b => b.classList.toggle('on', b.dataset.f === histFilter));
+  };
+  $('#app').innerHTML = `
+    <div class="pill-tabs">
+      ${[['alle','Alle'],['offen','Offene Mängel'],...Object.entries(ARTEN).map(([k,v]) => [k, v.label])]
+        .map(([k,l]) => `<button data-f="${k}">${l}</button>`).join('')}
+    </div>
+    <div id="list"></div>`;
+  $('.pill-tabs').addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) { histFilter = b.dataset.f; draw(); } });
+  draw();
+}
+
+async function viewMore(){
+  setHeader('Mehr');
+  const [cranes, entries] = await Promise.all([DB.all('cranes'), DB.all('entries')]);
+  let usage = '';
+  if (navigator.storage?.estimate) {
+    const {usage: u} = await navigator.storage.estimate();
+    usage = ` · ${(u / 1048576).toFixed(1)} MB belegt`;
+  }
+  const persisted = navigator.storage?.persisted ? await navigator.storage.persisted() : false;
+  $('#app').innerHTML = `
+    <h2>Daten</h2>
+    <div class="card muted">${cranes.length} Kräne · ${entries.length} Einträge${usage}<br>
+      Speicher ${persisted ? 'dauerhaft gesichert ✔' : 'nicht dauerhaft – bitte regelmäßig Backup machen'}</div>
+    <button class="btn" id="export">Backup exportieren (JSON)</button>
+    <label class="btn sec" style="color:var(--text)">Backup importieren
+      <input type="file" accept="application/json,.json" id="import" hidden></label>
+    <button class="btn sec" id="csv">Einträge als CSV (Excel) exportieren</button>
+
+    <h2>Installieren</h2>
+    <div class="card muted">
+      <b style="color:var(--text)">iPhone (Safari):</b> Teilen-Symbol → „Zum Home-Bildschirm“.<br>
+      <b style="color:var(--text)">Android (Chrome):</b> Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“.<br><br>
+      Die App funktioniert danach auch offline. Alle Daten bleiben nur auf diesem Gerät.
+    </div>
+
+    <h2>Gefahrenzone</h2>
+    <button class="btn danger" id="wipe">Alle Daten löschen</button>
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.0</div>`;
+
+  const download = (name, text, type) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], {type}));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+  $('#export').addEventListener('click', () => {
+    download(`kran-wartung-backup-${today()}.json`, JSON.stringify({app:'kran-wartung', version:1, exported:new Date().toISOString(), cranes, entries}), 'application/json');
+  });
+  $('#csv').addEventListener('click', () => {
+    const byId = Object.fromEntries(cranes.map(c => [c.id, c]));
+    const q = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const head = ['Datum','Kran','Seriennr.','Standort','Art','Techniker','Betriebsstunden','Mängel (Prüfpunkte)','Mängel','Arbeiten','Ersatzteile','Status'];
+    const rows = entries.sort((a,b) => a.datum.localeCompare(b.datum)).map(e => {
+      const c = byId[e.craneId] || {};
+      return [fmtDate(e.datum), c.name, c.seriennr, c.standort, ARTEN[e.art]?.label || e.art, e.techniker, e.stunden,
+        Object.entries(e.checks||{}).filter(([,v]) => v === 'mangel').map(([k]) => k).join('; '),
+        e.maengel, e.notiz, e.teile, e.offen ? 'offen' : (e.behobenAm ? 'behoben ' + fmtDate(e.behobenAm) : '')].map(q).join(';');
+    });
+    download(`kran-wartung-${today()}.csv`, '﻿' + [head.map(q).join(';'), ...rows].join('\r\n'), 'text/csv');
+  });
+  $('#import').addEventListener('change', async ev => {
+    const file = ev.target.files[0]; if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!Array.isArray(data.cranes) || !Array.isArray(data.entries)) throw new Error('Format');
+      if (!confirm(`${data.cranes.length} Kräne und ${data.entries.length} Einträge importieren? Vorhandene Einträge mit gleicher ID werden überschrieben.`)) return;
+      for (const c of data.cranes) await DB.put('cranes', c);
+      for (const e of data.entries) await DB.put('entries', e);
+      toast('Import erfolgreich'); render();
+    } catch { toast('Ungültige Backup-Datei'); }
+    ev.target.value = '';
+  });
+  $('#wipe').addEventListener('click', async () => {
+    if (!confirm('Wirklich ALLE Kräne und Einträge löschen? Das kann nicht rückgängig gemacht werden.')) return;
+    if (prompt('Zum Bestätigen LÖSCHEN eingeben') !== 'LÖSCHEN') return;
+    await DB.clear('cranes'); await DB.clear('entries'); toast('Alle Daten gelöscht'); go('#/');
+  });
+}
+
+function showImage(src){
+  const v = document.createElement('div');
+  v.className = 'viewer'; v.innerHTML = `<img src="${src}">`;
+  v.addEventListener('click', () => v.remove());
+  document.body.appendChild(v);
+}
+function craneIcon(){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V3l14 4H6"/><path d="M3 21h8"/><path d="M17 7v6"/><path d="M15 13h4v2a2 2 0 01-4 0"/></svg>`;
+}
+
+/* ---------- Start ---------- */
+navigator.storage?.persist?.();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+render();
+</script>
+</body>
+</html>
