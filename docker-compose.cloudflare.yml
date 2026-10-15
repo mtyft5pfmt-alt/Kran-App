@@ -5,6 +5,8 @@ services:
     image: ghcr.io/mtyft5pfmt-alt/kran-app:latest
     container_name: kran-app
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     ports:
       - "8090:8080"          # zusätzlich im WLAN erreichbar unter http://<NAS-IP>:8090
     environment:
@@ -19,8 +21,25 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: kran-app-tunnel
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: HIER_TOKEN_AUS_CLOUDFLARE_EINFUEGEN
     depends_on:
       - kran-app
+
+  # Holt jede Nacht um 3 Uhr automatisch neue Versionen (nur Container mit dem Label oben)
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: kran-app-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TZ: Europe/Berlin
+      WATCHTOWER_LABEL_ENABLE: "true"     # nur Kran-App-Container aktualisieren, sonst nichts auf dem NAS
+      WATCHTOWER_CLEANUP: "true"          # alte Images löschen
+      WATCHTOWER_SCHEDULE: "0 0 3 * * *"  # täglich 03:00 Uhr
+      # Falls im Watchtower-Log „client version ... is too old“ steht, diese Zeile aktivieren:
+      # DOCKER_API_VERSION: "1.44"

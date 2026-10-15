@@ -24,7 +24,8 @@ Bei jedem Push auf `master` baut GitHub automatisch ein Docker-Image:
 
 Die Datenbank liegt im Projektordner unter `data/` – diesen Ordner ins NAS-Backup aufnehmen.
 
-**Update:** Im UGOS-Docker beim Projekt das Image neu ziehen bzw. das Projekt neu bereitstellen.
+**Updates:** Der mitgelieferte Watchtower-Container holt jede Nacht um 3 Uhr automatisch die neueste Version.
+Sofort aktualisieren: im UGOS-Docker beim Projekt das Image neu ziehen bzw. das Projekt neu bereitstellen.
 
 ### Zugriff von unterwegs und als App installieren
 
