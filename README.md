@@ -31,9 +31,22 @@ Die Datenbank liegt im Projektordner unter `data/` – diesen Ordner ins NAS-Bac
 Im eigenen WLAN geht es über `http://<NAS-IP>:8090`. Für die Installation als App, den Offline-Modus
 und den Zugriff von unterwegs braucht die Seite **HTTPS**, z. B.:
 
-- **Tailscale** (empfohlen, nichts wird öffentlich): Tailscale auf NAS und Handys, dann `tailscale serve`
+- **Cloudflare Tunnel** (kostenlos, braucht eine eigene Domain bei Cloudflare): siehe unten.
+- **Tailscale** (nichts wird öffentlich): Tailscale auf NAS und Handys, dann `tailscale serve`
   bzw. die HTTPS-Adresse des NAS im Tailnet verwenden.
 - **Reverse Proxy** mit eigener Domain und Let's-Encrypt-Zertifikat auf Port 8090.
+
+### Cloudflare Tunnel einrichten
+
+1. Domain bei Cloudflare anlegen (oder dort kaufen) – kostenloser Tarif reicht.
+2. Cloudflare Dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel** → Typ **Cloudflared**,
+   Name z. B. `nas`. Bei „Install connector“ **Docker** wählen und nur den Token (langer Text nach `--token`) kopieren.
+3. Unter **Public Hostname** hinzufügen: Subdomain `kran`, Domain wählen, Service **HTTP** → `kran-app:8080`.
+4. Im UGOS das Projekt mit [`docker-compose.cloudflare.yml`](docker-compose.cloudflare.yml) anlegen
+   (bzw. das bestehende Projekt damit ersetzen), Token und Admin-Passwort eintragen.
+5. Auf allen Handys `https://kran.<deine-domain>` öffnen und als App zum Startbildschirm hinzufügen.
+
+Kein Port am Router freigeben – der Tunnel baut die Verbindung von innen nach außen auf.
 
 ## Ohne Server
 

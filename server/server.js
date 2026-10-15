@@ -113,6 +113,16 @@ const requireAdmin = u => { if (!u.admin) throw new HttpError(403, 'Nur für Adm
 const validName = n => typeof n === 'string' && n.trim().length >= 2 && n.trim().length <= 40;
 const validPw = p => typeof p === 'string' && p.length >= 6 && p.length <= 200;
 
+// Hinter Cloudflare Tunnel / Reverse Proxy kommen alle Anfragen vom Proxy – echte IP aus dem Header lesen
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+function clientIp(req) {
+  if (TRUST_PROXY) {
+    const h = req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (h) return h;
+  }
+  return req.socket.remoteAddress;
+}
+
 // Schutz gegen Passwort-Raten: nach 5 Fehlversuchen 1 Minute Sperre pro IP
 const failures = new Map();
 function checkRate(ip) {
@@ -132,7 +142,7 @@ async function api(req, res, route) {
   if (route === 'health' && method === 'GET') return send(res, 200, { app: 'kran-wartung', version: 1 });
 
   if (route === 'login' && method === 'POST') {
-    const ip = req.socket.remoteAddress;
+    const ip = clientIp(req);
     checkRate(ip);
     const { name, password } = await readJson(req);
     const u = typeof name === 'string' && q.userByName.get(name.trim());

@@ -1,0 +1,26 @@
+# Variante mit Cloudflare Tunnel: App von überall per HTTPS erreichbar, ohne Port-Freigabe am Router.
+# UGREEN: Docker → Projekt → Erstellen → diesen Inhalt einfügen, Passwort und Tunnel-Token eintragen.
+services:
+  kran-app:
+    image: ghcr.io/mtyft5pfmt-alt/kran-app:latest
+    container_name: kran-app
+    restart: unless-stopped
+    ports:
+      - "8090:8080"          # zusätzlich im WLAN erreichbar unter http://<NAS-IP>:8090
+    environment:
+      TZ: Europe/Berlin
+      ADMIN_USER: admin
+      ADMIN_PASSWORD: BitteAendern123
+      TRUST_PROXY: "1"       # echte Besucher-IP von Cloudflare übernehmen
+    volumes:
+      - ./data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: kran-app-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: HIER_TOKEN_AUS_CLOUDFLARE_EINFUEGEN
+    depends_on:
+      - kran-app
