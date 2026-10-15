@@ -1,6 +1,6 @@
 # Kran-Wartung
 
-Handy-App (PWA) zur Wartung von Kranen – funktioniert offline, alle Daten bleiben auf dem Gerät.
+Handy-App (PWA) zur Wartung von Kranen – für mehrere Benutzer mit Abgleich über den eigenen Server (z. B. UGREEN NAS), funktioniert auch offline.
 
 - Kräne mit Stammdaten (Typ, Hersteller, Seriennr., Standort, Traglast …)
 - Wartungs- und UVV-Prüfintervalle mit Fälligkeitsübersicht (überfällig / bald fällig)
@@ -8,11 +8,42 @@ Handy-App (PWA) zur Wartung von Kranen – funktioniert offline, alle Daten blei
 - Checkliste mit Prüfpunkten (OK / Mangel / n. a.), eigene Prüfpunkte, Fotos
 - Offene Mängel verfolgen und als behoben markieren
 - Bericht teilen (WhatsApp, Mail …), Backup als JSON, Export als CSV für Excel
+- Mehrere Benutzer mit Login, Abgleich aller Geräte über den Server
 
-## Aufs Handy bringen
+## Installation auf dem UGREEN NAS (Docker)
 
-1. Auf GitHub: **Settings → Pages → Source: Deploy from a branch → `master` / `(root)`** → Save.
-2. Nach ca. 1 Minute die angezeigte Adresse (z. B. `https://<name>.github.io/kran-app/`) auf dem Handy öffnen.
-3. **iPhone (Safari):** Teilen → „Zum Home-Bildschirm“. **Android (Chrome):** ⋮ → „App installieren“.
+Bei jedem Push auf `master` baut GitHub automatisch ein Docker-Image:
+`ghcr.io/mtyft5pfmt-alt/kran-app:latest`
 
-Lokal testen: `python3 -m http.server` und `http://localhost:8000` öffnen.
+1. Auf GitHub unter **Packages → kran-app → Package settings** die Sichtbarkeit auf **Public** stellen
+   (sonst muss sich das NAS bei ghcr.io anmelden).
+2. Im UGOS: **Docker → Projekt → Erstellen**, Ordner wählen (z. B. `/docker/kran-app`) und den Inhalt
+   von [`docker-compose.yml`](docker-compose.yml) einfügen. **`ADMIN_PASSWORD` ändern!** Dann bereitstellen.
+3. Im Browser `http://<NAS-IP>:8090` öffnen und mit `admin` + dem Passwort anmelden.
+4. Unter **Mehr → Benutzer verwalten** Kollegen anlegen.
+
+Die Datenbank liegt im Projektordner unter `data/` – diesen Ordner ins NAS-Backup aufnehmen.
+
+**Update:** Im UGOS-Docker beim Projekt das Image neu ziehen bzw. das Projekt neu bereitstellen.
+
+### Zugriff von unterwegs und als App installieren
+
+Im eigenen WLAN geht es über `http://<NAS-IP>:8090`. Für die Installation als App, den Offline-Modus
+und den Zugriff von unterwegs braucht die Seite **HTTPS**, z. B.:
+
+- **Tailscale** (empfohlen, nichts wird öffentlich): Tailscale auf NAS und Handys, dann `tailscale serve`
+  bzw. die HTTPS-Adresse des NAS im Tailnet verwenden.
+- **Reverse Proxy** mit eigener Domain und Let's-Encrypt-Zertifikat auf Port 8090.
+
+## Ohne Server
+
+Über GitHub Pages (`https://mtyft5pfmt-alt.github.io/Kran-App/`) läuft die App ohne Login,
+die Daten bleiben dann nur auf dem jeweiligen Gerät. Ein dort erstelltes Backup lässt sich in der
+Server-Version unter **Mehr → Backup importieren** einspielen.
+
+## Lokal entwickeln
+
+```
+ADMIN_PASSWORD=test123 node server/server.js   # Node.js 22.13+
+```
+→ http://localhost:8080

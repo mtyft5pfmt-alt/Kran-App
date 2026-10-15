@@ -101,11 +101,20 @@ textarea{min-height:90px;resize:vertical}
 .pill-tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
 .pill-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;
   padding:7px 14px;font-weight:600;font-size:14px;white-space:nowrap}
+#sync{background:none;border:0;padding:6px;display:none;align-items:center}
+#sync.show{display:flex}
+#sync i{width:12px;height:12px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px rgba(0,0,0,.15)}
+#sync.pending i{background:#fff7}#sync.busy i{background:#fff;animation:pulse 1s infinite}
+#sync.offline i{background:#8a8f98}#sync.error i{background:var(--red)}
+@keyframes pulse{50%{opacity:.3}}
+body.login nav{display:none}
+.login-box{max-width:380px;margin:40px auto 0}
+.err{color:var(--red);font-weight:600;margin-top:10px;min-height:1.4em}
 .pill-tabs button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
 </style>
 </head>
 <body>
-<header><h1 id="h-title">Kran-Wartung</h1><span id="h-action"></span></header>
+<header><h1 id="h-title">Kran-Wartung</h1><button id="sync" title="Abgleich"><i></i></button><span id="h-action"></span></header>
 <main id="app"></main>
 <nav>
   <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Übersicht</a>
@@ -149,12 +158,13 @@ const DB = (() => {
   function open(){
     if (dbp) return dbp;
     dbp = new Promise((res, rej) => {
-      const r = indexedDB.open('kran-wartung', 1);
+      const r = indexedDB.open('kran-wartung', 2);
       r.onupgradeneeded = () => {
         const db = r.result;
-        db.createObjectStore('cranes', {keyPath:'id'});
-        const e = db.createObjectStore('entries', {keyPath:'id'});
-        e.createIndex('craneId', 'craneId');
+        if (!db.objectStoreNames.contains('cranes')) db.createObjectStore('cranes', {keyPath:'id'});
+        if (!db.objectStoreNames.contains('entries')) db.createObjectStore('entries', {keyPath:'id'}).createIndex('craneId', 'craneId');
+        // Änderungen, die noch nicht an den Server übertragen wurden
+        if (!db.objectStoreNames.contains('pending')) db.createObjectStore('pending', {keyPath:'key'});
       };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
@@ -177,6 +187,16 @@ const DB = (() => {
     put:  (store, obj) => tx(store, 'readwrite', s => s.put(obj)),
     del:  (store, id) => tx(store, 'readwrite', s => s.delete(id)),
     clear: store => tx(store, 'readwrite', s => s.clear()),
+    /* Vom Benutzer geänderte Daten: Zeitstempel setzen und für den Abgleich vormerken */
+    async save(store, obj, {keepUpdated = false} = {}){
+      if (!keepUpdated || !obj.updated) obj.updated = Date.now();
+      await this.put(store, obj);
+      if (Sync.mode) { await this.put('pending', {key: store + ':' + obj.id, store, id: obj.id, updated: obj.updated, deleted: false}); Sync.soon(); }
+    },
+    async remove(store, id){
+      await this.del(store, id);
+      if (Sync.mode) { await this.put('pending', {key: store + ':' + id, store, id, updated: Date.now(), deleted: true}); Sync.soon(); }
+    },
   };
 })();
 
@@ -241,6 +261,95 @@ function shrinkImage(file, max = 1280, q = 0.75){
   });
 }
 
+/* ---------- Server-Abgleich (nur wenn die App vom eigenen Server kommt) ---------- */
+const Sync = {
+  mode: localStorage.getItem('serverMode') === '1',
+  token: localStorage.getItem('token') || '',
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  state: 'ok', busy: false, again: false, timer: null,
+  lastOk: Number(localStorage.getItem('lastSync') || 0),
+
+  async api(path, body, method = body ? 'POST' : 'GET'){
+    const r = await fetch('api/' + path, {
+      method, cache: 'no-store',
+      headers: {'Content-Type':'application/json', ...(this.token ? {Authorization: 'Bearer ' + this.token} : {})},
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(60000),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401 && this.token && path !== 'password') { this.setLogin(null); render(); }
+    if (!r.ok) { const e = new Error(data.error || 'Fehler ' + r.status); e.status = r.status; throw e; }
+    return data;
+  },
+  /* Erkennen, ob die App von einem Kran-Wartung-Server geladen wurde */
+  async detect(){
+    try {
+      const r = await fetch('api/health', {cache:'no-store', signal: AbortSignal.timeout(5000)});
+      const j = r.ok ? await r.json() : null;
+      const mode = j?.app === 'kran-wartung';
+      if (mode !== this.mode) { this.mode = mode; localStorage.setItem('serverMode', mode ? '1' : '0'); render(); }
+    } catch { /* offline: letzten bekannten Modus behalten */ }
+    this.updateDot();
+    this.now();
+  },
+  setLogin(res){
+    this.token = res?.token || ''; this.user = res?.user || null;
+    if (res) { localStorage.setItem('token', this.token); localStorage.setItem('user', JSON.stringify(this.user)); }
+    else { localStorage.removeItem('token'); localStorage.removeItem('user'); }
+  },
+  soon(){ clearTimeout(this.timer); this.timer = setTimeout(() => this.now(), 800); this.updateDot(); },
+  async now(manual = false){
+    if (!this.mode || !this.token) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; this.state = 'busy'; this.updateDot();
+    try {
+      const pending = await DB.all('pending');
+      const changes = [];
+      for (const p of pending) {
+        const data = p.deleted ? null : await DB.get(p.store, p.id);
+        changes.push({store: p.store, id: p.id, updated: p.updated, deleted: p.deleted || !data, data});
+      }
+      const since = Number(localStorage.getItem('since') || 0);
+      const res = await this.api('sync', {since, changes});
+      // Übertragene Änderungen abhaken (außer sie wurden inzwischen erneut geändert)
+      for (const p of pending) {
+        const cur = await DB.get('pending', p.key);
+        if (cur && cur.updated === p.updated) await DB.del('pending', p.key);
+      }
+      let changed = 0;
+      for (const c of res.changes) {
+        if (!['cranes','entries'].includes(c.store)) continue;
+        if (await DB.get('pending', c.store + ':' + c.id)) continue; // lokale, neuere Änderung hat Vorrang
+        const local = await DB.get(c.store, c.id);
+        if (c.deleted) { if (local) { await DB.del(c.store, c.id); changed++; } }
+        else if (!local || local.updated !== c.updated) { await DB.put(c.store, c.data); changed++; }
+      }
+      localStorage.setItem('since', String(res.rev));
+      this.lastOk = Date.now(); localStorage.setItem('lastSync', String(this.lastOk));
+      this.state = 'ok';
+      if (changed && !/\/(neu|bearbeiten)/.test(location.hash) && !(Sync.mode && !Sync.token)) render({keepScroll:true});
+      if (manual) toast(changed ? `${changed} Änderung(en) empfangen` : 'Alles abgeglichen');
+    } catch (e) {
+      this.state = e.status ? 'error' : 'offline';
+      if (manual) toast(e.status ? 'Abgleich fehlgeschlagen: ' + e.message : 'Server nicht erreichbar – Daten bleiben gespeichert');
+    } finally {
+      this.busy = false;
+      await this.updateDot();
+      if (this.again) { this.again = false; this.now(); }
+    }
+  },
+  async updateDot(){
+    const el = $('#sync');
+    el.classList.toggle('show', this.mode && !!this.token);
+    if (!this.mode || !this.token) return;
+    const n = (await DB.all('pending')).length;
+    const st = this.state === 'ok' && n ? 'pending' : this.state;
+    el.className = 'show ' + st;
+    el.title = {ok:'Abgeglichen', pending:`${n} Änderung(en) warten auf Abgleich`, busy:'Abgleich läuft …',
+      offline:'Offline – wird später abgeglichen', error:'Abgleich fehlgeschlagen'}[st];
+  },
+};
+
 /* ---------- Router ---------- */
 const routes = [
   [/^\/$/, viewHome],
@@ -253,14 +362,20 @@ const routes = [
   [/^\/eintrag\/([\w]+)$/, viewEntry],
   [/^\/verlauf$/, viewHistory],
   [/^\/mehr$/, viewMore],
+  [/^\/benutzer$/, viewUsers],
 ];
-async function render(){
+// Ansichten nacheinander zeichnen, damit eine langsame Ansicht keine neuere überschreibt
+let renderChain = Promise.resolve();
+function render(opts){ return renderChain = renderChain.then(() => renderNow(opts)).catch(console.error); }
+async function renderNow({keepScroll = false} = {}){
   const path = location.hash.slice(1) || '/';
+  document.body.classList.toggle('login', Sync.mode && !Sync.token);
+  if (Sync.mode && !Sync.token) return viewLogin();
   const tab = path.startsWith('/kran') ? 'kraene' : path.startsWith('/verlauf') || path.startsWith('/eintrag') ? 'verlauf' : path.startsWith('/mehr') ? 'mehr' : 'home';
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
   for (const [re, fn] of routes) {
     const m = path.match(re);
-    if (m) { await fn(...m.slice(1)); window.scrollTo(0,0); return; }
+    if (m) { const y = window.scrollY; await fn(...m.slice(1)); window.scrollTo(0, keepScroll ? y : 0); return; }
   }
   location.hash = '#/';
 }
@@ -448,17 +563,17 @@ async function viewCraneForm(id){
   $('#form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
-    const obj = {...c, ...data, id: c.id || uid(), updated: Date.now()};
+    const obj = {...c, ...data, id: c.id || uid()};
     obj.name = obj.name.trim();
-    await DB.put('cranes', obj);
+    await DB.save('cranes', obj);
     toast('Gespeichert');
     go('#/kran/' + obj.id);
   });
   if (id) $('#del').addEventListener('click', async () => {
     const entries = (await DB.all('entries')).filter(e => e.craneId === id);
     if (!confirm(`„${c.name}“ und ${entries.length} Einträge wirklich löschen?`)) return;
-    for (const e of entries) await DB.del('entries', e.id);
-    await DB.del('cranes', id);
+    for (const e of entries) await DB.remove('entries', e.id);
+    await DB.remove('cranes', id);
     toast('Kran gelöscht');
     go('#/kraene');
   });
@@ -470,7 +585,7 @@ async function viewEntryForm(id, craneId, art){
   const cranes = (await DB.all('cranes')).sort((a,b) => a.name.localeCompare(b.name));
   if (!e) {
     art = art && ARTEN[art] ? art : 'wartung';
-    const last = localStorage.getItem('techniker') || '';
+    const last = localStorage.getItem('techniker') || Sync.user?.name || '';
     e = {craneId, art, datum: today(), techniker: last, checks:{}, fotos:[]};
     if (art === 'wartung' || art === 'pruefung' || art === 'inspektion') DEFAULT_CHECKS.forEach(k => e.checks[k] = '');
   }
@@ -572,9 +687,9 @@ async function viewEntryForm(id, craneId, art){
   $('#form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
-    const obj = {...e, ...data, offen: !!data.offen, checks, fotos, id: e.id || uid(), updated: Date.now()};
+    const obj = {...e, ...data, offen: !!data.offen, checks, fotos, id: e.id || uid()};
     if (obj.offen && !e.offen) obj.behobenAm = '';
-    await DB.put('entries', obj);
+    await DB.save('entries', obj);
     if (obj.techniker) localStorage.setItem('techniker', obj.techniker);
     toast('Eintrag gespeichert');
     go('#/kran/' + obj.craneId);
@@ -611,11 +726,11 @@ async function viewEntry(id){
   $('#photos')?.addEventListener('click', ev => { if (ev.target.tagName === 'IMG') showImage(ev.target.src); });
   $('#fix')?.addEventListener('click', async () => {
     e.offen = false; e.behobenAm = today();
-    await DB.put('entries', e); toast('Als behoben markiert'); render();
+    await DB.save('entries', e); toast('Als behoben markiert'); render();
   });
   $('#del').addEventListener('click', async () => {
     if (!confirm('Eintrag wirklich löschen?')) return;
-    await DB.del('entries', id); toast('Gelöscht'); go(c ? '#/kran/' + c.id : '#/verlauf');
+    await DB.remove('entries', id); toast('Gelöscht'); go(c ? '#/kran/' + c.id : '#/verlauf');
   });
   $('#share').addEventListener('click', async () => {
     const lines = [
@@ -668,7 +783,8 @@ async function viewMore(){
     usage = ` · ${(u / 1048576).toFixed(1)} MB belegt`;
   }
   const persisted = navigator.storage?.persisted ? await navigator.storage.persisted() : false;
-  $('#app').innerHTML = `
+  const account = await accountSection();
+  $('#app').innerHTML = account + `
     <h2>Daten</h2>
     <div class="card muted">${cranes.length} Kräne · ${entries.length} Einträge${usage}<br>
       Speicher ${persisted ? 'dauerhaft gesichert ✔' : 'nicht dauerhaft – bitte regelmäßig Backup machen'}</div>
@@ -681,12 +797,13 @@ async function viewMore(){
     <div class="card muted">
       <b style="color:var(--text)">iPhone (Safari):</b> Teilen-Symbol → „Zum Home-Bildschirm“.<br>
       <b style="color:var(--text)">Android (Chrome):</b> Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“.<br><br>
-      Die App funktioniert danach auch offline. Alle Daten bleiben nur auf diesem Gerät.
+      Die App funktioniert danach auch offline.${Sync.mode ? ' Änderungen werden automatisch mit dem Server abgeglichen.' : ' Alle Daten bleiben nur auf diesem Gerät.'}
     </div>
 
-    <h2>Gefahrenzone</h2>
-    <button class="btn danger" id="wipe">Alle Daten löschen</button>
-    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.0</div>`;
+    ${!Sync.mode || Sync.user?.admin ? `<h2>Gefahrenzone</h2>
+    <button class="btn danger" id="wipe">Alle Daten löschen${Sync.mode ? ' (für alle Benutzer)' : ''}</button>` : ''}
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.1${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
+  bindAccount();
 
   const download = (name, text, type) => {
     const a = document.createElement('a');
@@ -715,16 +832,124 @@ async function viewMore(){
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.cranes) || !Array.isArray(data.entries)) throw new Error('Format');
       if (!confirm(`${data.cranes.length} Kräne und ${data.entries.length} Einträge importieren? Vorhandene Einträge mit gleicher ID werden überschrieben.`)) return;
-      for (const c of data.cranes) await DB.put('cranes', c);
-      for (const e of data.entries) await DB.put('entries', e);
+      for (const c of data.cranes) await DB.save('cranes', c, {keepUpdated:true});
+      for (const e of data.entries) await DB.save('entries', e, {keepUpdated:true});
       toast('Import erfolgreich'); render();
     } catch { toast('Ungültige Backup-Datei'); }
     ev.target.value = '';
   });
-  $('#wipe').addEventListener('click', async () => {
+  $('#wipe')?.addEventListener('click', async () => {
     if (!confirm('Wirklich ALLE Kräne und Einträge löschen? Das kann nicht rückgängig gemacht werden.')) return;
     if (prompt('Zum Bestätigen LÖSCHEN eingeben') !== 'LÖSCHEN') return;
-    await DB.clear('cranes'); await DB.clear('entries'); toast('Alle Daten gelöscht'); go('#/');
+    if (Sync.mode) {
+      for (const c of cranes) await DB.remove('cranes', c.id);
+      for (const e of entries) await DB.remove('entries', e.id);
+    } else { await DB.clear('cranes'); await DB.clear('entries'); }
+    toast('Alle Daten gelöscht'); go('#/');
+  });
+}
+
+async function viewLogin(){
+  setHeader('Kran-Wartung');
+  $('#app').innerHTML = `
+    <div class="login-box">
+      <div class="empty" style="padding:10px 16px 20px">${craneIcon()}<p><b>Bitte anmelden</b></p></div>
+      <form id="form" class="card">
+        <label for="l-name">Benutzername</label>
+        <input id="l-name" name="name" autocomplete="username" autocapitalize="none" required>
+        <label for="l-pw">Passwort</label>
+        <input id="l-pw" name="password" type="password" autocomplete="current-password" required>
+        <div class="err" id="err"></div>
+        <button class="btn" type="submit" style="margin:6px 0 0">Anmelden</button>
+      </form>
+    </div>`;
+  $('#form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    try {
+      const res = await Sync.api('login', Object.fromEntries(new FormData(ev.target)));
+      Sync.setLogin(res);
+      localStorage.setItem('since', '0');
+      document.body.classList.remove('login');
+      go('#/'); await render();
+      Sync.now();
+    } catch (e) {
+      $('#err').textContent = e.status ? e.message : 'Server nicht erreichbar';
+    }
+  });
+}
+
+async function accountSection(){
+  if (!Sync.mode || !Sync.token) return '';
+  const n = (await DB.all('pending')).length;
+  return `
+    <h2>Konto & Abgleich</h2>
+    <div class="card">
+      <div class="row"><div class="grow"><b>${esc(Sync.user?.name)}</b>${Sync.user?.admin ? ' <span class="badge b-amber">Admin</span>' : ''}
+        <div class="muted">Letzter Abgleich: ${Sync.lastOk ? new Date(Sync.lastOk).toLocaleString('de-DE') : 'noch nie'}${n ? ` · ${n} Änderung(en) ausstehend` : ''}</div></div></div>
+    </div>
+    <button class="btn" id="syncnow">Jetzt abgleichen</button>
+    ${Sync.user?.admin ? '<a class="btn sec" href="#/benutzer">Benutzer verwalten</a>' : ''}
+    <button class="btn sec" id="chpw">Passwort ändern</button>
+    <button class="btn sec" id="logout">Abmelden</button>`;
+}
+function bindAccount(){
+  $('#syncnow')?.addEventListener('click', async () => { await Sync.now(true); render({keepScroll:true}); });
+  $('#chpw')?.addEventListener('click', async () => {
+    const old = prompt('Aktuelles Passwort'); if (!old) return;
+    const pw = prompt('Neues Passwort (mind. 6 Zeichen)'); if (!pw) return;
+    try { await Sync.api('password', {old, password: pw}); toast('Passwort geändert'); }
+    catch (e) { toast(e.message); }
+  });
+  $('#logout')?.addEventListener('click', async () => {
+    const n = (await DB.all('pending')).length;
+    if (n && !confirm(`${n} Änderung(en) sind noch nicht auf dem Server und gehen beim Abmelden verloren. Trotzdem abmelden?`)) return;
+    if (!n && !confirm('Abmelden?')) return;
+    try { await Sync.api('logout', {}); } catch {}
+    Sync.setLogin(null);
+    await DB.clear('cranes'); await DB.clear('entries'); await DB.clear('pending');
+    localStorage.removeItem('since'); localStorage.removeItem('techniker');
+    go('#/'); render();
+  });
+}
+
+async function viewUsers(){
+  if (!Sync.mode || !Sync.user?.admin) return go('#/mehr');
+  setHeader('Benutzer');
+  let users = [];
+  try { users = await Sync.api('users'); }
+  catch (e) { $('#app').innerHTML = `<div class="card">${esc(e.status ? e.message : 'Server nicht erreichbar – Benutzer können nur online verwaltet werden.')}</div>`; return; }
+  $('#app').innerHTML = `
+    <h2>Neuer Benutzer</h2>
+    <form id="form" class="card" autocomplete="off">
+      <label for="u-name">Benutzername</label><input id="u-name" name="name" autocapitalize="none" required>
+      <label for="u-pw">Start-Passwort (mind. 6 Zeichen)</label><input id="u-pw" name="password" required minlength="6">
+      <label class="row" style="color:var(--text);margin-top:14px"><input type="checkbox" name="admin" style="width:22px;height:22px;flex:none"> Admin (darf Benutzer verwalten)</label>
+      <button class="btn" type="submit" style="margin:14px 0 0">Anlegen</button>
+    </form>
+    <h2>Alle Benutzer (${users.length})</h2>
+    ${users.map(u => `
+      <div class="card row">
+        <div class="grow"><div class="title">${esc(u.name)}</div><div class="muted">${u.admin ? 'Admin' : 'Benutzer'}${u.id === Sync.user.id ? ' · du' : ''}</div></div>
+        <button class="badge b-grey" style="border:0;padding:8px 10px" data-pw="${u.id}">Passwort</button>
+        ${u.id === Sync.user.id ? '' : `<button class="badge b-red" style="border:0;padding:8px 10px" data-del="${u.id}" data-name="${esc(u.name)}">Löschen</button>`}
+      </div>`).join('')}`;
+  $('#form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const d = Object.fromEntries(new FormData(ev.target));
+    try { await Sync.api('users', {...d, admin: !!d.admin}); toast('Benutzer angelegt'); render(); }
+    catch (e) { toast(e.message); }
+  });
+  $('#app').addEventListener('click', async ev => {
+    const b = ev.target.closest('button[data-pw],button[data-del]'); if (!b) return;
+    try {
+      if (b.dataset.pw) {
+        const pw = prompt('Neues Passwort (mind. 6 Zeichen)'); if (!pw) return;
+        await Sync.api(`users/${b.dataset.pw}/password`, {password: pw}); toast('Passwort gesetzt');
+      } else {
+        if (!confirm(`Benutzer „${b.dataset.name}“ löschen? Die erfassten Daten bleiben erhalten.`)) return;
+        await Sync.api(`users/${b.dataset.del}`, null, 'DELETE'); toast('Benutzer gelöscht'); render();
+      }
+    } catch (e) { toast(e.message); }
   });
 }
 
@@ -741,7 +966,13 @@ function craneIcon(){
 /* ---------- Start ---------- */
 navigator.storage?.persist?.();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+$('#sync').addEventListener('click', () => Sync.now(true));
+Sync.updateDot();
 render();
+Sync.detect();
+setInterval(() => Sync.now(), 30000);
+addEventListener('online', () => Sync.now());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) Sync.now(); });
 </script>
 </body>
 </html>
