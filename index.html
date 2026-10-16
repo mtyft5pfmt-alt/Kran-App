@@ -74,7 +74,15 @@ label{display:block;font-size:14px;font-weight:600;color:var(--muted);margin:12p
 input,select,textarea{width:100%;font:inherit;font-size:16px;padding:12px;border-radius:10px;
   border:1px solid var(--line);background:var(--card);color:var(--text)}
 textarea{min-height:90px;resize:vertical}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px}
+/* Einheitliche Feldhöhe – iOS zeichnet Datums- und Auswahlfelder sonst größer */
+input:not([type=checkbox]),select{height:48px;min-width:0;line-height:22px}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
+input[type=date]::-webkit-calendar-picker-indicator{margin:0}
+select{-webkit-appearance:none;appearance:none;padding-right:34px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236a7380' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
 .check{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
 .check:last-child{border-bottom:0}
 .check .grow{font-size:15px}
