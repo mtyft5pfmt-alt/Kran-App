@@ -395,7 +395,7 @@ async function renderNow({keepScroll = false} = {}){
   const path = location.hash.slice(1) || '/';
   document.body.classList.toggle('login', Sync.mode && !Sync.token);
   if (Sync.mode && !Sync.token) return viewLogin();
-  const tab = path.startsWith('/kran') ? 'kraene' : path.startsWith('/verlauf') || path.startsWith('/eintrag') ? 'verlauf' : path.startsWith('/mehr') ? 'mehr' : 'home';
+  const tab = /^\/(kraene|kran\/)/.test(path) ? 'kraene' : /^\/(verlauf|eintrag)/.test(path) ? 'verlauf' : /^\/(mehr|benutzer)/.test(path) ? 'mehr' : 'home';
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
   for (const [re, fn] of routes) {
     const m = path.match(re);
