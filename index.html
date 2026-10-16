@@ -152,6 +152,7 @@ const FUNK_FELDER = [
   ['funkKanal','Kanal'],
   ['funkErsatzSender','Ersatzsender Seriennr.'],
   ['funkAkku','Akku / Ladegerät'],
+  ['funkAkkuTausch','Letzter Akkutausch','date'],
 ];
 const HT_FELDER = [
   ['htTyp','Hängetaster Hersteller / Typ'],
@@ -533,17 +534,30 @@ async function viewCrane(id){
     <h2>Historie (${mine.length})</h2>
     ${mine.length ? mine.map(entryCard).join('') : '<div class="card muted">Noch keine Einträge.</div>'}
   `;
+  $('#akku-heute')?.addEventListener('click', async () => {
+    if (!confirm('Akkutausch mit heutigem Datum eintragen?')) return;
+    c.funkAkkuTausch = today();
+    await DB.save('cranes', c); toast('Akkutausch eingetragen'); render({keepScroll:true});
+  });
 }
 
 function ansteuerungCard(c){
   if (!c.ansteuerung) return '';
   const rows = [['Art', c.ansteuerung],
     ...(hatHT(c.ansteuerung) ? HT_FELDER.map(([k,l]) => [l, c[k]]) : []),
-    ...(hatFunk(c.ansteuerung) ? FUNK_FELDER.map(([k,l]) => [l, c[k]]) : []),
+    ...(hatFunk(c.ansteuerung) ? FUNK_FELDER.map(([k,l]) => [l, k === 'funkAkkuTausch' ? akkuText(c[k]) : c[k]]) : []),
     ['Notiz', c.ansteuerungNotiz]].filter(([,v]) => v);
   return `<h2>Ansteuerung</h2><div class="card"><dl class="dl">
     ${rows.map(([k,v]) => `<dt>${k}</dt><dd${/Adresse|Seriennr|Kanal/.test(k) ? ' style="font-family:ui-monospace,Menlo,monospace"' : ''}>${esc(v)}</dd>`).join('')}
-  </dl></div>`;
+  </dl>
+  ${hatFunk(c.ansteuerung) ? `<button class="btn sec" id="akku-heute" style="margin:12px 0 0">🔋 Akku heute getauscht</button>` : ''}
+  </div>`;
+}
+function akkuText(d){
+  if (!d) return '';
+  const tage = -daysUntil(parseDate(d));
+  const alter = tage < 31 ? `vor ${tage} Tagen` : tage < 730 ? `vor ${Math.round(tage / 30.4)} Monaten` : `vor ${(tage / 365).toFixed(1).replace('.', ',')} Jahren`;
+  return `${fmtDate(d)} (${tage <= 0 ? 'heute' : alter})`;
 }
 
 function entryCard(e, crane){
@@ -599,6 +613,7 @@ async function viewCraneForm(id){
           <div class="muted" style="margin-top:14px;font-weight:700">Weitere Angaben</div>
           <div class="grid2">${FUNK_FELDER.slice(8,10).map(([k,l,t,x]) => f(k,l,t,x)).join('')}</div>
           <div class="grid2">${FUNK_FELDER.slice(10,12).map(([k,l,t,x]) => f(k,l,t,x)).join('')}</div>
+          ${f(...FUNK_FELDER[12])}
           <datalist id="dl-funkhersteller">${['HBC-radiomatic','Hetronic','Autec','Scanreco','Ikusi','Tele Radio','Danfoss (Ikusi)','Jay Electronique','NBB','Abitron','Cattron','Gross Funk','Demag','Stahl','ABUS']
             .map(v => `<option value="${v}">`).join('')}</datalist>
           <datalist id="dl-funkfrequenz">${['433 MHz','434 MHz','458 MHz','869 MHz','870 MHz','915 MHz','2,4 GHz']
@@ -812,6 +827,7 @@ async function viewEntry(id){
       c?.standort ? `Standort: ${c.standort}` : '',
       c?.ansteuerung ? `Ansteuerung: ${c.ansteuerung}` : '',
       hatFunk(c?.ansteuerung) && (c.funkSenderAdr || c.funkEmpfAdr) ? `Funk: Sender ${c.funkSenderAdr || '–'} / Empfänger ${c.funkEmpfAdr || '–'}` : '',
+      hatFunk(c?.ansteuerung) && c.funkAkkuTausch ? `Letzter Akkutausch: ${fmtDate(c.funkAkkuTausch)}` : '',
       e.techniker ? `Techniker: ${e.techniker}` : '',
       e.stunden ? `Betriebsstunden: ${e.stunden}` : '',
       checks.length ? '\nPrüfpunkte:\n' + checks.map(([k,v]) => `- ${k}: ${checkLabel[v][0]}`).join('\n') : '',
@@ -876,7 +892,7 @@ async function viewMore(){
 
     ${!Sync.mode || Sync.user?.admin ? `<h2>Gefahrenzone</h2>
     <button class="btn danger" id="wipe">Alle Daten löschen${Sync.mode ? ' (für alle Benutzer)' : ''}</button>` : ''}
-    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.2${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.3${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
   bindAccount();
 
   const download = (name, text, type) => {
