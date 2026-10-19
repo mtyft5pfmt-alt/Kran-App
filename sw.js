@@ -1,5 +1,5 @@
 // Offline-Cache für die Kran-Wartung-App. Version erhöhen, wenn Dateien geändert werden.
-const CACHE = 'kran-wartung-v6';
+const CACHE = 'kran-wartung-v7';
 const FILES = ['./', 'index.html', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
