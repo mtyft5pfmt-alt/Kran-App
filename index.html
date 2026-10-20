@@ -152,7 +152,7 @@ body.login nav{display:none}
 /* ---------- Konstanten ---------- */
 const ARTEN = {
   wartung:   {label:'Wartung',        badge:'b-green'},
-  pruefung:  {label:'UVV-Prüfung',    badge:'b-amber'},
+  pruefung:  {label:'UVV-Prüfung',    badge:'b-amber', alt:true},  // nur noch für alte Einträge
   inspektion:{label:'Inspektion',     badge:'b-grey'},
   reparatur: {label:'Reparatur',      badge:'b-red'},
   stoerung:  {label:'Störung',        badge:'b-red'},
@@ -253,9 +253,9 @@ const daysUntil = d => { const t = new Date(); t.setHours(0,0,0,0); return Math.
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
 function setHeader(title, actionHtml = ''){ $('#h-title').textContent = title; $('#h-action').innerHTML = actionHtml; document.title = title; }
 
-/* Fälligkeit für eine Art (wartung | pruefung) */
+/* Fälligkeit der Wartung */
 function dueInfo(crane, entries, art){
-  const interval = Number(art === 'pruefung' ? crane.intervallPruefung : crane.intervallWartung) || 0;
+  const interval = Number(crane.intervallWartung) || 0;
   if (!interval) return null;
   const last = entries.filter(e => e.craneId === crane.id && e.art === art).sort((a,b) => b.datum.localeCompare(a.datum))[0];
   if (!last) {
@@ -278,10 +278,9 @@ function statusOf(info){
 }
 function craneStatus(crane, entries){
   const w = statusOf(dueInfo(crane, entries, 'wartung'));
-  const p = statusOf(dueInfo(crane, entries, 'pruefung'));
   const open = entries.filter(e => e.craneId === crane.id && e.offen).length;
-  const worst = Math.min(w.rank, p.rank, open ? 0 : 9);
-  return {w, p, open, worst};
+  const worst = Math.min(w.rank, open ? 0 : 9);
+  return {w, open, worst};
 }
 
 /* Fotos verkleinern, damit der Speicher nicht vollläuft */
@@ -593,19 +592,19 @@ async function viewHome(){
       <div class="empty">
         ${craneIcon()}
         <p><b>Noch keine Kräne angelegt.</b></p>
-        <p>Lege deinen ersten Kran an, um Wartungen und UVV-Prüfungen zu verfolgen.</p>
+        <p>Lege deinen ersten Kran an, um Wartungen und Mängel zu verfolgen.</p>
       </div>
       <a class="btn" href="#/kran/neu">Ersten Kran anlegen</a>`;
     return;
   }
   const rows = cranes.map(c => ({c, s: craneStatus(c, entries)}));
-  const overdue = rows.filter(r => r.s.w.rank === 0 || r.s.p.rank === 0).length;
-  const soon = rows.filter(r => r.s.w.rank === 2 || r.s.p.rank === 2).length;
+  const overdue = rows.filter(r => r.s.w.rank === 0).length;
+  const soon = rows.filter(r => r.s.w.rank === 2).length;
   const openDefects = entries.filter(e => e.offen);
 
   const tasks = [];
   for (const {c} of rows) {
-    for (const art of ['pruefung','wartung']) {
+    for (const art of ['wartung']) {
       const info = dueInfo(c, entries, art);
       const st = statusOf(info);
       if (st.rank <= 2) tasks.push({c, art, info, st});
@@ -663,7 +662,6 @@ async function viewCranes(){
         <div class="muted">${esc([c.typ, c.standort, c.ansteuerung].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
         <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px">
           <span class="muted">Wartung</span><span class="badge ${s.w.cls}">${s.w.text}</span>
-          <span class="muted" style="margin-left:6px">UVV</span><span class="badge ${s.p.cls}">${s.p.text}</span>
         </div>
       </a>`).join('') : `<div class="empty">${cranes.length ? 'Keine Treffer.' : 'Noch keine Kräne angelegt.'}</div>`;
   };
@@ -679,8 +677,8 @@ async function viewCrane(id){
   if (!c) return go('#/kraene');
   const entries = await DB.all('entries');
   const mine = entries.filter(e => e.craneId === id).sort((a,b) => b.datum.localeCompare(a.datum));
-  const w = dueInfo(c, entries, 'wartung'), p = dueInfo(c, entries, 'pruefung');
-  const ws = statusOf(w), ps = statusOf(p);
+  const w = dueInfo(c, entries, 'wartung');
+  const ws = statusOf(w);
   setHeader(c.name, `<button onclick="go('#/kran/${id}/bearbeiten')">Bearbeiten</button>`);
   const dueLine = (label, info, st) => `
     <div class="row" style="padding:6px 0">
@@ -690,11 +688,10 @@ async function viewCrane(id){
   $('#app').innerHTML = `
     <div class="card">
       ${dueLine('Wartung', w, ws)}
-      ${dueLine('UVV-Prüfung', p, ps)}
     </div>
     <div class="btns" style="margin-bottom:12px">
       <a class="btn" href="#/eintrag/neu/${id}/wartung">+ Wartung</a>
-      <a class="btn" href="#/eintrag/neu/${id}/pruefung">+ Prüfung</a>
+      <a class="btn sec" href="#/eintrag/neu/${id}/inspektion">+ Inspektion</a>
       <a class="btn sec" href="#/eintrag/neu/${id}/reparatur">+ Reparatur</a>
       <a class="btn sec" href="#/eintrag/neu/${id}/stoerung">+ Störung</a>
     </div>
@@ -704,7 +701,6 @@ async function viewCrane(id){
          ['Standort',c.standort],['Traglast',c.traglast ? c.traglast + ' t' : ''],['Baujahr',c.baujahr],
          ['Inbetriebnahme',c.inbetrieb ? fmtDate(c.inbetrieb) : ''],
          ['Wartungsintervall',c.intervallWartung ? c.intervallWartung + ' Tage' : ''],
-         ['Prüfintervall',c.intervallPruefung ? c.intervallPruefung + ' Tage' : ''],
          ['Ansprechpartner',c.kontakt],['Notiz',c.notiz]]
         .filter(([,v]) => v).map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}
     </dl></div>
@@ -743,7 +739,7 @@ function entryCard(e, crane){
 }
 
 async function viewCraneForm(id){
-  const c = id ? await DB.get('cranes', id) : {intervallWartung:90, intervallPruefung:365};
+  const c = id ? await DB.get('cranes', id) : {intervallWartung:90};
   if (id && !c) return go('#/kraene');
   setHeader(id ? 'Kran bearbeiten' : 'Neuer Kran');
   const f = (name, label, type = 'text', extra = '') =>
@@ -786,11 +782,8 @@ async function viewCraneForm(id){
         </div>
       </div>
       <div class="card">
-        <div class="grid2">
-          ${f('intervallWartung','Wartung alle (Tage)','number','inputmode="numeric" min="0"')}
-          ${f('intervallPruefung','UVV-Prüfung alle (Tage)','number','inputmode="numeric" min="0"')}
-        </div>
-        <div class="muted" style="margin-top:8px">UVV-/Sachkundigenprüfung nach DGUV V52 / BetrSichV i. d. R. mindestens jährlich (365 Tage). 0 = kein Intervall.</div>
+        ${f('intervallWartung','Wartung alle (Tage)','number','inputmode="numeric" min="0"')}
+        <div class="muted" style="margin-top:8px">0 = kein Intervall.</div>
       </div>
       ${partEditorHtml('motoren')}
       ${partEditorHtml('komponenten')}
@@ -837,10 +830,10 @@ async function viewEntryForm(id, craneId, art){
   if (id && !e) return go('#/verlauf');
   const cranes = (await DB.all('cranes')).sort((a,b) => a.name.localeCompare(b.name));
   if (!e) {
-    art = art && ARTEN[art] ? art : 'wartung';
+    art = art && ARTEN[art] && !ARTEN[art].alt ? art : 'wartung';
     const last = localStorage.getItem('techniker') || Sync.user?.name || '';
     e = {craneId, art, datum: today(), techniker: last, checks:{}, fotos:[]};
-    if (art === 'wartung' || art === 'pruefung' || art === 'inspektion') DEFAULT_CHECKS.forEach(k => e.checks[k] = '');
+    if (art === 'wartung' || art === 'inspektion') DEFAULT_CHECKS.forEach(k => e.checks[k] = '');
   }
   const crane = cranes.find(c => c.id === e.craneId);
   setHeader(id ? 'Eintrag bearbeiten' : `${ARTEN[e.art]?.label || 'Eintrag'} erfassen`);
@@ -871,7 +864,7 @@ async function viewEntryForm(id, craneId, art){
         </select>
         <div class="grid2">
           <div><label for="f-art">Art</label>
-            <select id="f-art" name="art">${Object.entries(ARTEN).map(([k,v]) => `<option value="${k}" ${k === e.art ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+            <select id="f-art" name="art">${Object.entries(ARTEN).filter(([k,v]) => !v.alt || k === e.art).map(([k,v]) => `<option value="${k}" ${k === e.art ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
           <div><label for="f-datum">Datum</label><input id="f-datum" type="date" name="datum" value="${esc(e.datum)}" required></div>
         </div>
         <div class="grid2">
@@ -1021,7 +1014,7 @@ async function viewHistory(){
   };
   $('#app').innerHTML = `
     <div class="pill-tabs">
-      ${[['alle','Alle'],['offen','Offene Mängel'],...Object.entries(ARTEN).map(([k,v]) => [k, v.label])]
+      ${[['alle','Alle'],['offen','Offene Mängel'],...Object.entries(ARTEN).filter(([k,v]) => !v.alt || entries.some(e => e.art === k)).map(([k,v]) => [k, v.label])]
         .map(([k,l]) => `<button data-f="${k}">${l}</button>`).join('')}
     </div>
     <div id="list"></div>`;
@@ -1059,7 +1052,7 @@ async function viewMore(){
 
     ${!Sync.mode || Sync.user?.admin ? `<h2>Gefahrenzone</h2>
     <button class="btn danger" id="wipe">Alle Daten löschen${Sync.mode ? ' (für alle Benutzer)' : ''}</button>` : ''}
-    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.7${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.8${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
   bindAccount();
 
   const download = (name, text, type) => {
