@@ -89,6 +89,11 @@ select{-webkit-appearance:none;appearance:none;padding-right:34px;
 .part-del{flex:none;width:36px;height:36px;border:0;border-radius:50%;background:var(--red-bg);color:var(--red);font-size:20px;font-weight:700;line-height:1}
 .quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .quick button{border:1px dashed var(--muted);background:transparent;color:var(--text);border-radius:999px;padding:8px 12px;font-weight:600;font-size:14px}
+summary{list-style:none;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+summary b::after{content:' ▸';color:var(--muted)}
+details[open] summary b::after{content:' ▾'}
+details[open] summary{margin-bottom:4px}
 .part-group{padding:8px 0;border-bottom:1px solid var(--line)}
 .part-group:last-child{border-bottom:0}
 .part-line{padding:6px 0 0 10px;border-left:3px solid var(--line);margin:6px 0 0 2px}
@@ -307,21 +312,29 @@ const MOTOR_KATEGORIEN = ['Hubmotor','Kranfahrtmotor','Katzfahrtmotor','Hilfshub
 const KOMPONENTEN_KATEGORIEN = ['Schütz','Hilfsschütz','Relais','Zeitrelais','Sicherung','Leitungsschutzschalter','Motorschutzschalter',
   'Hauptschalter','Transformator','Netzteil','Frequenzumrichter','Sanftanlauf','Bremsgleichrichter','Endschalter','Getriebeendschalter',
   'Überlastschutz / Lastmessung','SPS / Steuerung','NOT-HALT-Schaltgerät','Klemmen','Sonstiges'];
-// [Feld, Beschriftung, Zusatzattribute]
-const KOMP_FELDER = [['hersteller','Hersteller'],['typ','Typ / Bezeichnung'],['artnr','Artikelnr.'],
-  ['daten','Daten (z. B. 24 V, 16 A)'],['anzahl','Anzahl','inputmode="numeric"'],['bemerkung','Bemerkung / Ort (z. B. K1, F3)']];
+// Jeder Motor / jede Komponente: Kategorie, Foto(s) (z. B. vom Typenschild) und eine Bemerkung
 const PART_LISTS = {
-  // Motoren: nur Foto(s), z. B. vom Typenschild, und eine Bemerkung
-  motoren: {titel:'Motoren', einzeln:'Motor', kats: MOTOR_KATEGORIEN, felder: [], fotos: true, dl:'dl-motorkat'},
-  komponenten: {titel:'Elektrokomponenten', einzeln:'Komponente', kats: KOMPONENTEN_KATEGORIEN, felder: KOMP_FELDER, dl:'dl-kompkat'},
+  motoren: {titel:'Motoren', einzeln:'Motor', kats: MOTOR_KATEGORIEN, dl:'dl-motorkat',
+    quick: MOTOR_KATEGORIEN.slice(0, 3), andere: 'Anderer Motor'},
+  komponenten: {titel:'Elektrokomponenten', einzeln:'Komponente', kats: KOMPONENTEN_KATEGORIEN, dl:'dl-kompkat',
+    quick: ['Schütz','Relais','Sicherung','Transformator'], andere: 'Andere Komponente'},
 };
-const anz = p => Math.max(1, parseInt(p.anzahl, 10) || 1);
-const partFilled = p => (p.fotos || []).length > 0 || [p.kat, ...Object.keys(p).filter(k => !['kat','anzahl','fotos'].includes(k)).map(k => p[k])].some(v => String(v || '').trim());
+// Früher gab es Einzelfelder (Hersteller, Typ …) – deren Inhalt wird in die Bemerkung übernommen
+const ALT_FELDER = [['hersteller',''],['typ',''],['artnr','Art.-Nr. '],['daten',''],['leistung','',' kW'],['spannung','',' V'],
+  ['seriennr','Seriennr. '],['bremse','Bremse '],['anzahl','',' Stk.']];
+function migratePart(p){
+  const alt = ALT_FELDER.filter(([f]) => p[f] && !(f === 'anzahl' && String(p[f]) === '1'))
+    .map(([f, vor, nach = '']) => vor + p[f] + nach).join(' · ');
+  const q = {kat: p.kat || '', fotos: p.fotos || [], bemerkung: [alt, p.bemerkung].filter(Boolean).join('\n')};
+  return q;
+}
+const partFilled = p => (p.fotos || []).length > 0 || [p.kat, p.bemerkung].some(v => String(v || '').trim());
 
 /* Bearbeitbare Liste im Kran-Formular */
 function partEditor(key, list){
   const cfg = PART_LISTS[key];
   const box = $(`#ed-${key}`);
+  list.splice(0, list.length, ...list.map(migratePart));
   const draw = () => {
     box.innerHTML = list.map((p, i) => `
       <div class="part">
@@ -329,21 +342,17 @@ function partEditor(key, list){
           <input class="grow" list="${cfg.dl}" data-i="${i}" data-f="kat" value="${esc(p.kat)}" placeholder="Kategorie wählen oder eintippen">
           <button type="button" class="part-del" data-del="${i}" title="Entfernen">×</button>
         </div>
-        ${cfg.fotos ? `
-        <div class="photos">${(p.fotos || []).map((src, j) => `<div class="photo"><img src="${src}" data-i="${i}" data-j="${j}"><button type="button" data-rmfoto="${j}" data-i="${i}">×</button></div>`).join('')}</div>
+        <div class="photos">${p.fotos.map((src, j) => `<div class="photo"><img src="${src}"><button type="button" data-rmfoto="${j}" data-i="${i}">×</button></div>`).join('')}</div>
         <label class="btn sec" style="margin:10px 0 0;color:var(--text)">📷 Foto aufnehmen
           <input type="file" accept="image/*" capture="environment" multiple data-foto="${i}" hidden></label>
         <label>Bemerkung</label>
-        <textarea data-i="${i}" data-f="bemerkung" style="min-height:70px">${esc(p.bemerkung)}</textarea>` : `
-        <div class="grid2">${cfg.felder.map(([f, l, x = '']) => `
-          <div><label>${l}</label><input data-i="${i}" data-f="${f}" value="${esc(p[f])}" ${x}></div>`).join('')}
-        </div>`}
+        <textarea data-i="${i}" data-f="bemerkung" style="min-height:70px">${esc(p.bemerkung)}</textarea>
       </div>`).join('') || `<div class="muted">Noch keine ${cfg.titel} erfasst.</div>`;
   };
   box.addEventListener('input', ev => { const t = ev.target; if (t.dataset.f) list[t.dataset.i][t.dataset.f] = t.value; });
   box.addEventListener('change', async ev => {
     const t = ev.target; if (t.dataset.foto === undefined) return;
-    const p = list[t.dataset.foto]; p.fotos ||= [];
+    const p = list[t.dataset.foto];
     for (const file of t.files) {
       try { p.fotos.push(await shrinkImage(file)); } catch { toast('Foto konnte nicht geladen werden'); }
     }
@@ -364,54 +373,50 @@ function partEditor(key, list){
   });
   $(`#add-${key}`).addEventListener('click', ev => {
     const b = ev.target.closest('button[data-kat]'); if (!b) return;
-    list.push(cfg.fotos ? {kat: b.dataset.kat, fotos: []} : {kat: b.dataset.kat, anzahl: '1'}); draw();
+    list.push({kat: b.dataset.kat, fotos: [], bemerkung: ''}); draw();
     box.lastElementChild?.scrollIntoView({block:'center', behavior:'smooth'});
-    // Bei Motoren keine Tastatur öffnen – dort kommt als Nächstes das Foto
-    if (!cfg.fotos || !b.dataset.kat) box.lastElementChild?.querySelectorAll('input')[b.dataset.kat ? 1 : 0]?.focus({preventScroll:true});
+    // Nur bei „Andere …“ die Tastatur für die Kategorie öffnen – sonst kommt als Nächstes das Foto
+    if (!b.dataset.kat) box.lastElementChild?.querySelector('input')?.focus({preventScroll:true});
   });
   draw();
 }
 function partEditorHtml(key){
   const cfg = PART_LISTS[key];
-  const quick = key === 'motoren' ? MOTOR_KATEGORIEN.slice(0, 3) : ['Schütz','Relais','Sicherung','Transformator'];
   return `
     <h2>${cfg.titel}</h2>
     <div class="card">
       <div id="ed-${key}"></div>
       <datalist id="${cfg.dl}">${cfg.kats.map(k => `<option value="${k}">`).join('')}</datalist>
       <div class="quick" id="add-${key}">
-        ${quick.map(k => `<button type="button" data-kat="${k}">+ ${k}</button>`).join('')}
-        <button type="button" data-kat="">+ ${key === 'motoren' ? 'Anderer Motor' : 'Andere Komponente'}</button>
+        ${cfg.quick.map(k => `<button type="button" data-kat="${k}">+ ${k}</button>`).join('')}
+        <button type="button" data-kat="">+ ${cfg.andere}</button>
       </div>
     </div>`;
 }
 
+/* Fotos + Bemerkung eines Teils (Kran-Ansicht und Übersicht) */
+function partBody(p){
+  return `${p.fotos.length ? `<div class="photos" style="margin-top:0">${p.fotos.map(src => `<img src="${src}" class="zoom">`).join('')}</div>` : ''}
+    ${p.bemerkung ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(p.bemerkung)}</div>` : ''}
+    ${!p.fotos.length && !p.bemerkung ? '<div class="muted">ohne Foto / Bemerkung</div>' : ''}`;
+}
+const katSort = cfg => (a, b) => (cfg.kats.indexOf(a) + 1 || 99) - (cfg.kats.indexOf(b) + 1 || 99) || a.localeCompare(b);
+
 /* Anzeige in der Kran-Ansicht, nach Kategorie gruppiert */
 function partsCard(c, key){
   const cfg = PART_LISTS[key];
-  const list = c[key] || [];
+  const list = (c[key] || []).map(migratePart);
   if (!list.length) return '';
   const groups = {};
   for (const p of list) (groups[p.kat || 'Ohne Kategorie'] ||= []).push(p);
-  const order = Object.keys(groups).sort((a, b) => (cfg.kats.indexOf(a) + 1 || 99) - (cfg.kats.indexOf(b) + 1 || 99) || a.localeCompare(b));
-  return `<h2>${cfg.titel}</h2><div class="card">${order.map(k => `
+  return `<h2>${cfg.titel}</h2><div class="card">${Object.keys(groups).sort(katSort(cfg)).map(k => `
     <div class="part-group">
-      <div class="row"><b class="grow">${esc(k)}</b><span class="badge b-grey">${groups[k].reduce((s, p) => s + anz(p), 0)} Stk.</span></div>
-      ${groups[k].map(p => cfg.fotos ? `
-        <div class="part-line">
-          ${(p.fotos || []).length ? `<div class="photos" style="margin-top:0">${p.fotos.map(src => `<img src="${src}" class="zoom">`).join('')}</div>` : ''}
-          ${p.bemerkung ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(p.bemerkung)}</div>` : ''}
-          ${!(p.fotos || []).length && !p.bemerkung ? '<div class="muted">ohne Foto / Bemerkung</div>' : ''}
-        </div>` : `
-        <div class="part-line">
-          <div>${anz(p) > 1 ? `<b>${anz(p)} ×</b> ` : ''}${esc([p.hersteller, p.typ].filter(Boolean).join(' ')) || '<span class="muted">ohne Typangabe</span>'}</div>
-          <div class="muted">${esc(cfg.felder.filter(([f]) => !['hersteller','typ','anzahl'].includes(f) && p[f])
-            .map(([f, l]) => `${l.replace(/ \(.*\)/, '')}: ${p[f]}${f === 'leistung' ? ' kW' : f === 'spannung' ? ' V' : ''}`).join(' · '))}</div>
-        </div>`).join('')}
+      <div class="row"><b class="grow">${esc(k)}</b><span class="badge b-grey">${groups[k].length} Stk.</span></div>
+      ${groups[k].map(p => `<div class="part-line">${partBody(p)}</div>`).join('')}
     </div>`).join('')}</div>`;
 }
 
-/* Ersatzteil-Übersicht über alle Kräne */
+/* Teile-Übersicht über alle Kräne: je Kategorie alle Fotos und Bemerkungen */
 function downloadFile(name, text, type){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type}));
@@ -421,45 +426,42 @@ function downloadFile(name, text, type){
 let partsFilter = '';
 async function viewParts(){
   setHeader('Ersatzteile');
-  const cranes = await DB.all('cranes');
-  const rows = new Map();
-  for (const c of cranes) for (const key of ['komponenten']) for (const p of c[key] || []) {
-    if (!partFilled(p)) continue;
-    const k = [key, p.kat, p.hersteller, p.typ, p.artnr].map(v => String(v || '').trim().toLowerCase()).join('|');
-    const r = rows.get(k) || {key, kat: p.kat || 'Ohne Kategorie', hersteller: p.hersteller, typ: p.typ, artnr: p.artnr, daten: p.daten || p.leistung && p.leistung + ' kW', menge: 0, kraene: new Map()};
-    r.menge += anz(p);
-    r.kraene.set(c.id, {name: c.name, n: (r.kraene.get(c.id)?.n || 0) + anz(p)});
-    rows.set(k, r);
+  const cranes = (await DB.all('cranes')).sort((a, b) => a.name.localeCompare(b.name));
+  const all = [];
+  for (const key of ['komponenten', 'motoren']) {
+    const cfg = PART_LISTS[key], groups = {};
+    for (const c of cranes) for (const p of (c[key] || []).map(migratePart))
+      (groups[p.kat || 'Ohne Kategorie'] ||= []).push({...p, kran: c});
+    for (const kat of Object.keys(groups).sort(katSort(cfg))) all.push({key, kat, teile: groups[kat]});
   }
-  const katIdx = r => (PART_LISTS[r.key].kats.indexOf(r.kat) + 1) || 99;
-  const all = [...rows.values()].sort((a, b) => b.key.localeCompare(a.key) || katIdx(a) - katIdx(b) || a.kat.localeCompare(b.kat) || b.kraene.size - a.kraene.size);
   const draw = () => {
     const q = partsFilter.toLowerCase();
-    const list = all.filter(r => !q || [r.kat, r.hersteller, r.typ, r.artnr, ...[...r.kraene.values()].map(k => k.name)].join(' ').toLowerCase().includes(q));
-    let last = '';
-    $('#list').innerHTML = list.length ? list.map(r => {
-      const head = r.key + r.kat !== last ? `<h2>${esc(r.kat)}</h2>` : '';
-      last = r.key + r.kat;
-      return head + `<div class="card">
-        <div class="row"><div class="grow"><div class="title">${esc([r.hersteller, r.typ].filter(Boolean).join(' ') || 'ohne Typangabe')}</div>
-          <div class="muted">${esc([r.artnr && 'Art.-Nr. ' + r.artnr, r.daten].filter(Boolean).join(' · '))}</div></div>
-          <span class="badge ${r.kraene.size > 1 ? 'b-amber' : 'b-grey'}">${r.menge} Stk. · ${r.kraene.size} ${r.kraene.size === 1 ? 'Kran' : 'Kräne'}</span></div>
-        <div class="muted" style="margin-top:6px">${[...r.kraene.entries()].map(([id, k]) => `<a href="#/kran/${id}" style="color:inherit">${esc(k.name)}</a>${k.n > 1 ? ` (${k.n})` : ''}`).join(', ')}</div>
-      </div>`;
-    }).join('') : `<div class="empty">${all.length ? 'Keine Treffer.' : 'Noch keine Elektrokomponenten an Kränen erfasst.'}</div>`;
+    const list = all.map(g => ({...g, teile: g.teile.filter(p => !q || [g.kat, p.bemerkung, p.kran.name].join(' ').toLowerCase().includes(q))}))
+      .filter(g => g.teile.length);
+    let bereich = '';
+    $('#list').innerHTML = list.length ? list.map(g => {
+      const head = g.key !== bereich ? `<h2>${PART_LISTS[g.key].titel}</h2>` : '';
+      bereich = g.key;
+      const kraene = new Set(g.teile.map(p => p.kran.id)).size;
+      return head + `<details class="card">
+        <summary class="row"><b class="grow">${esc(g.kat)}</b>
+          <span class="badge ${kraene > 1 ? 'b-amber' : 'b-grey'}">${g.teile.length} Stk. · ${kraene} ${kraene === 1 ? 'Kran' : 'Kräne'}</span></summary>
+        ${g.teile.map(p => `<div class="part-line"><a href="#/kran/${p.kran.id}" style="color:inherit;font-weight:600">${esc(p.kran.name)}</a>${partBody(p)}</div>`).join('')}
+      </details>`;
+    }).join('') : `<div class="empty">${all.length ? 'Keine Treffer.' : 'Noch keine Motoren oder Elektrokomponenten an Kränen erfasst.'}</div>`;
+    document.querySelectorAll('#list img.zoom').forEach(img => img.addEventListener('click', () => showImage(img.src)));
   };
   $('#app').innerHTML = `
-    <div class="card muted">Alle an Kränen erfassten Elektrokomponenten, gleiche Teile zusammengefasst.
-      <b style="color:var(--amber)">Gelb</b> = in mehreren Kränen verbaut – gute Kandidaten fürs Ersatzteillager.</div>
-    <input class="search" type="search" placeholder="Suchen (Typ, Hersteller, Kran …)" value="${esc(partsFilter)}" id="q">
+    <div class="card muted">Alle an Kränen erfassten Elektrokomponenten und Motoren, nach Kategorie sortiert.
+      Antippen zeigt Fotos und Bemerkungen. <b style="color:var(--amber)">Gelb</b> = in mehreren Kränen verbaut.</div>
+    <input class="search" type="search" placeholder="Suchen (Kategorie, Bemerkung, Kran …)" value="${esc(partsFilter)}" id="q">
     <div id="list"></div>
     ${all.length ? '<button class="btn sec" id="csv" style="margin-top:12px">Als CSV (Excel) exportieren</button>' : ''}`;
   $('#q').addEventListener('input', e => { partsFilter = e.target.value; draw(); });
   $('#csv')?.addEventListener('click', () => {
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [['Bereich','Kategorie','Hersteller','Typ','Artikelnr.','Daten','Menge gesamt','Anzahl Kräne','Kräne'].map(q).join(';'),
-      ...all.map(r => [PART_LISTS[r.key].titel, r.kat, r.hersteller, r.typ, r.artnr, r.daten, r.menge, r.kraene.size,
-        [...r.kraene.values()].map(k => k.name + (k.n > 1 ? ` (${k.n})` : '')).join(', ')].map(q).join(';'))];
+    const lines = [['Bereich','Kategorie','Kran','Standort','Bemerkung','Fotos'].map(q).join(';'),
+      ...all.flatMap(g => g.teile.map(p => [PART_LISTS[g.key].titel, g.kat, p.kran.name, p.kran.standort, p.bemerkung, p.fotos.length].map(q).join(';')))];
     downloadFile(`ersatzteile-${today()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
   });
   draw();
@@ -657,7 +659,7 @@ async function viewCranes(){
   const draw = () => {
     const q = craneFilter.toLowerCase();
     const list = cranes
-      .filter(c => !q || [c.name,c.standort,c.hersteller,c.seriennr,c.typ,c.ansteuerung,...FUNK_FELDER.map(([k]) => c[k]),...[...(c.motoren||[]),...(c.komponenten||[])].map(p => [p.kat,p.hersteller,p.typ,p.artnr].join(' '))].join(' ').toLowerCase().includes(q))
+      .filter(c => !q || [c.name,c.standort,c.hersteller,c.seriennr,c.typ,c.ansteuerung,...FUNK_FELDER.map(([k]) => c[k]),...[...(c.motoren||[]),...(c.komponenten||[])].map(p => [p.kat,p.bemerkung,p.hersteller,p.typ].join(' '))].join(' ').toLowerCase().includes(q))
       .map(c => ({c, s: craneStatus(c, entries)}))
       .sort((a,b) => a.s.worst - b.s.worst || a.c.name.localeCompare(b.c.name));
     $('#list').innerHTML = list.length ? list.map(({c,s}) => `
@@ -1065,7 +1067,7 @@ async function viewMore(){
   const account = await accountSection();
   $('#app').innerHTML = account + `
     <h2>Lager</h2>
-    <a class="btn sec" href="#/ersatzteile">Ersatzteil-Übersicht (alle Kräne)</a>
+    <a class="btn sec" href="#/ersatzteile">Teile-Übersicht (alle Kräne)</a>
     <h2>Daten</h2>
     <div class="card muted">${cranes.length} Kräne · ${entries.length} Einträge${usage}<br>
       Speicher ${persisted ? 'dauerhaft gesichert ✔' : 'nicht dauerhaft – bitte regelmäßig Backup machen'}</div>
@@ -1083,7 +1085,7 @@ async function viewMore(){
 
     ${!Sync.mode || Sync.user?.admin ? `<h2>Gefahrenzone</h2>
     <button class="btn danger" id="wipe">Alle Daten löschen${Sync.mode ? ' (für alle Benutzer)' : ''}</button>` : ''}
-    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.5${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.6${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
   bindAccount();
 
   const download = (name, text, type) => {
