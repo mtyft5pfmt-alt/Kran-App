@@ -308,17 +308,15 @@ const KOMPONENTEN_KATEGORIEN = ['Schütz','Hilfsschütz','Relais','Zeitrelais','
   'Hauptschalter','Transformator','Netzteil','Frequenzumrichter','Sanftanlauf','Bremsgleichrichter','Endschalter','Getriebeendschalter',
   'Überlastschutz / Lastmessung','SPS / Steuerung','NOT-HALT-Schaltgerät','Klemmen','Sonstiges'];
 // [Feld, Beschriftung, Zusatzattribute]
-const MOTOR_FELDER = [['hersteller','Hersteller'],['typ','Typ'],['leistung','Leistung (kW)','inputmode="decimal"'],
-  ['spannung','Spannung (V)','inputmode="decimal"'],['seriennr','Seriennr.'],['bremse','Bremse (Typ)'],
-  ['anzahl','Anzahl','inputmode="numeric"'],['bemerkung','Bemerkung']];
 const KOMP_FELDER = [['hersteller','Hersteller'],['typ','Typ / Bezeichnung'],['artnr','Artikelnr.'],
   ['daten','Daten (z. B. 24 V, 16 A)'],['anzahl','Anzahl','inputmode="numeric"'],['bemerkung','Bemerkung / Ort (z. B. K1, F3)']];
 const PART_LISTS = {
-  motoren: {titel:'Motoren', einzeln:'Motor', kats: MOTOR_KATEGORIEN, felder: MOTOR_FELDER, dl:'dl-motorkat'},
+  // Motoren: nur Foto(s), z. B. vom Typenschild, und eine Bemerkung
+  motoren: {titel:'Motoren', einzeln:'Motor', kats: MOTOR_KATEGORIEN, felder: [], fotos: true, dl:'dl-motorkat'},
   komponenten: {titel:'Elektrokomponenten', einzeln:'Komponente', kats: KOMPONENTEN_KATEGORIEN, felder: KOMP_FELDER, dl:'dl-kompkat'},
 };
 const anz = p => Math.max(1, parseInt(p.anzahl, 10) || 1);
-const partFilled = p => [p.kat, ...Object.keys(p).filter(k => k !== 'kat' && k !== 'anzahl').map(k => p[k])].some(v => String(v || '').trim());
+const partFilled = p => (p.fotos || []).length > 0 || [p.kat, ...Object.keys(p).filter(k => !['kat','anzahl','fotos'].includes(k)).map(k => p[k])].some(v => String(v || '').trim());
 
 /* Bearbeitbare Liste im Kran-Formular */
 function partEditor(key, list){
@@ -331,14 +329,34 @@ function partEditor(key, list){
           <input class="grow" list="${cfg.dl}" data-i="${i}" data-f="kat" value="${esc(p.kat)}" placeholder="Kategorie wählen oder eintippen">
           <button type="button" class="part-del" data-del="${i}" title="Entfernen">×</button>
         </div>
+        ${cfg.fotos ? `
+        <div class="photos">${(p.fotos || []).map((src, j) => `<div class="photo"><img src="${src}" data-i="${i}" data-j="${j}"><button type="button" data-rmfoto="${j}" data-i="${i}">×</button></div>`).join('')}</div>
+        <label class="btn sec" style="margin:10px 0 0;color:var(--text)">📷 Foto aufnehmen
+          <input type="file" accept="image/*" capture="environment" multiple data-foto="${i}" hidden></label>
+        <label>Bemerkung</label>
+        <textarea data-i="${i}" data-f="bemerkung" style="min-height:70px">${esc(p.bemerkung)}</textarea>` : `
         <div class="grid2">${cfg.felder.map(([f, l, x = '']) => `
           <div><label>${l}</label><input data-i="${i}" data-f="${f}" value="${esc(p[f])}" ${x}></div>`).join('')}
-        </div>
+        </div>`}
       </div>`).join('') || `<div class="muted">Noch keine ${cfg.titel} erfasst.</div>`;
   };
   box.addEventListener('input', ev => { const t = ev.target; if (t.dataset.f) list[t.dataset.i][t.dataset.f] = t.value; });
+  box.addEventListener('change', async ev => {
+    const t = ev.target; if (t.dataset.foto === undefined) return;
+    const p = list[t.dataset.foto]; p.fotos ||= [];
+    for (const file of t.files) {
+      try { p.fotos.push(await shrinkImage(file)); } catch { toast('Foto konnte nicht geladen werden'); }
+    }
+    draw();
+  });
   box.addEventListener('click', ev => {
-    const d = ev.target.dataset.del;
+    const t = ev.target;
+    if (t.dataset.rmfoto !== undefined) {
+      if (confirm('Foto entfernen?')) { list[t.dataset.i].fotos.splice(Number(t.dataset.rmfoto), 1); draw(); }
+      return;
+    }
+    if (t.tagName === 'IMG') return showImage(t.src);
+    const d = t.dataset.del;
     if (d === undefined) return;
     const p = list[d];
     if (partFilled(p) && !confirm(`${p.kat || cfg.einzeln} entfernen?`)) return;
@@ -346,10 +364,10 @@ function partEditor(key, list){
   });
   $(`#add-${key}`).addEventListener('click', ev => {
     const b = ev.target.closest('button[data-kat]'); if (!b) return;
-    list.push({kat: b.dataset.kat, anzahl: '1'}); draw();
+    list.push(cfg.fotos ? {kat: b.dataset.kat, fotos: []} : {kat: b.dataset.kat, anzahl: '1'}); draw();
     box.lastElementChild?.scrollIntoView({block:'center', behavior:'smooth'});
-    const inputs = box.lastElementChild?.querySelectorAll('input');
-    inputs?.[b.dataset.kat ? 1 : 0]?.focus({preventScroll:true});
+    // Bei Motoren keine Tastatur öffnen – dort kommt als Nächstes das Foto
+    if (!cfg.fotos || !b.dataset.kat) box.lastElementChild?.querySelectorAll('input')[b.dataset.kat ? 1 : 0]?.focus({preventScroll:true});
   });
   draw();
 }
@@ -379,7 +397,12 @@ function partsCard(c, key){
   return `<h2>${cfg.titel}</h2><div class="card">${order.map(k => `
     <div class="part-group">
       <div class="row"><b class="grow">${esc(k)}</b><span class="badge b-grey">${groups[k].reduce((s, p) => s + anz(p), 0)} Stk.</span></div>
-      ${groups[k].map(p => `
+      ${groups[k].map(p => cfg.fotos ? `
+        <div class="part-line">
+          ${(p.fotos || []).length ? `<div class="photos" style="margin-top:0">${p.fotos.map(src => `<img src="${src}" class="zoom">`).join('')}</div>` : ''}
+          ${p.bemerkung ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(p.bemerkung)}</div>` : ''}
+          ${!(p.fotos || []).length && !p.bemerkung ? '<div class="muted">ohne Foto / Bemerkung</div>' : ''}
+        </div>` : `
         <div class="part-line">
           <div>${anz(p) > 1 ? `<b>${anz(p)} ×</b> ` : ''}${esc([p.hersteller, p.typ].filter(Boolean).join(' ')) || '<span class="muted">ohne Typangabe</span>'}</div>
           <div class="muted">${esc(cfg.felder.filter(([f]) => !['hersteller','typ','anzahl'].includes(f) && p[f])
@@ -400,7 +423,7 @@ async function viewParts(){
   setHeader('Ersatzteile');
   const cranes = await DB.all('cranes');
   const rows = new Map();
-  for (const c of cranes) for (const key of Object.keys(PART_LISTS)) for (const p of c[key] || []) {
+  for (const c of cranes) for (const key of ['komponenten']) for (const p of c[key] || []) {
     if (!partFilled(p)) continue;
     const k = [key, p.kat, p.hersteller, p.typ, p.artnr].map(v => String(v || '').trim().toLowerCase()).join('|');
     const r = rows.get(k) || {key, kat: p.kat || 'Ohne Kategorie', hersteller: p.hersteller, typ: p.typ, artnr: p.artnr, daten: p.daten || p.leistung && p.leistung + ' kW', menge: 0, kraene: new Map()};
@@ -423,10 +446,10 @@ async function viewParts(){
           <span class="badge ${r.kraene.size > 1 ? 'b-amber' : 'b-grey'}">${r.menge} Stk. · ${r.kraene.size} ${r.kraene.size === 1 ? 'Kran' : 'Kräne'}</span></div>
         <div class="muted" style="margin-top:6px">${[...r.kraene.entries()].map(([id, k]) => `<a href="#/kran/${id}" style="color:inherit">${esc(k.name)}</a>${k.n > 1 ? ` (${k.n})` : ''}`).join(', ')}</div>
       </div>`;
-    }).join('') : `<div class="empty">${all.length ? 'Keine Treffer.' : 'Noch keine Motoren oder Elektrokomponenten an Kränen erfasst.'}</div>`;
+    }).join('') : `<div class="empty">${all.length ? 'Keine Treffer.' : 'Noch keine Elektrokomponenten an Kränen erfasst.'}</div>`;
   };
   $('#app').innerHTML = `
-    <div class="card muted">Alle an Kränen erfassten Motoren und Elektrokomponenten, gleiche Teile zusammengefasst.
+    <div class="card muted">Alle an Kränen erfassten Elektrokomponenten, gleiche Teile zusammengefasst.
       <b style="color:var(--amber)">Gelb</b> = in mehreren Kränen verbaut – gute Kandidaten fürs Ersatzteillager.</div>
     <input class="search" type="search" placeholder="Suchen (Typ, Hersteller, Kran …)" value="${esc(partsFilter)}" id="q">
     <div id="list"></div>
@@ -694,6 +717,7 @@ async function viewCrane(id){
     <h2>Historie (${mine.length})</h2>
     ${mine.length ? mine.map(entryCard).join('') : '<div class="card muted">Noch keine Einträge.</div>'}
   `;
+  document.querySelectorAll('#app img.zoom').forEach(img => img.addEventListener('click', () => showImage(img.src)));
   $('#akku-heute')?.addEventListener('click', async () => {
     if (!confirm('Akkutausch mit heutigem Datum eintragen?')) return;
     c.funkAkkuTausch = today();
@@ -1059,7 +1083,7 @@ async function viewMore(){
 
     ${!Sync.mode || Sync.user?.admin ? `<h2>Gefahrenzone</h2>
     <button class="btn danger" id="wipe">Alle Daten löschen${Sync.mode ? ' (für alle Benutzer)' : ''}</button>` : ''}
-    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.4${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
+    <div class="muted" style="text-align:center;margin-top:20px">Kran-Wartung v1.5${Sync.mode ? ' · Server-Modus' : ' · nur auf diesem Gerät'}</div>`;
   bindAccount();
 
   const download = (name, text, type) => {
